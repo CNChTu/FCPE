@@ -55,7 +55,7 @@ class TransformerF0(nn.Module):
         x = self.norm(x)
         x = self.dense_out(x)
         if not infer:
-            x = F.mse_loss(x, (1 + gt_f0 / 700).log())
+            x = 100 * F.mse_loss(x, (1 + gt_f0 / 700).log())
         return x
 
 
