@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import time
 from .saver.saver import Saver
 from .saver import utils
 from torch import autocast
@@ -31,8 +32,16 @@ def test(args, model, loader_test, saver):
             print('>>', data['name'][0])
 
             # forward
-
+            st_time = time.time()
             f0 = model(mel=data['mel'], infer=True)
+            ed_time = time.time()
+
+            # RTF
+            run_time = ed_time - st_time
+            song_time = f0.shape[1] * args.mel.hop_size / args.mel.sampling_rate
+            rtf = run_time / song_time
+            print('RTF: {}  | {} / {}'.format(rtf, run_time, song_time))
+            rtf_all.append(rtf)
 
             # loss
             for i in range(args.train.batch_size):
