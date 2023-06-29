@@ -53,8 +53,8 @@ def get_data_loaders(args):
     data_train = F0Dataset(
         path_root=args.data.train_path,
         waveform_sec=args.data.duration,
-        hop_size=args.data.block_size,
-        sample_rate=args.data.sampling_rate,
+        hop_size=args.mel.hop_size,
+        sample_rate=args.mel.sampling_rate,
         load_all_data=args.train.cache_all_data,
         whole_audio=False,
         extensions=args.data.extensions,
@@ -72,8 +72,8 @@ def get_data_loaders(args):
     data_valid = F0Dataset(
         path_root=args.data.valid_path,
         waveform_sec=args.data.duration,
-        hop_size=args.data.block_size,
-        sample_rate=args.data.sampling_rate,
+        hop_size=args.mel.hop_size,
+        sample_rate=args.mel.sampling_rate,
         load_all_data=args.train.cache_all_data,
         whole_audio=True,
         extensions=args.data.extensions,

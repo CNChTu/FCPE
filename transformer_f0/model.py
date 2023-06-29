@@ -79,14 +79,31 @@ class TransformerF0Infer:
         model.load_state_dict(ckpt['model'])
         model.eval()
         self.model = model
+        self.wav2mel = Wav2Mel(self.args)
+
+    @torch.no_grad()
+    def __call__(self, audio, sr):
+        audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
+        mel = self.wav2mel(audio=audio, sample_rate=sr)
+        mel_f0 = self.model(mel=mel, infer=True)
+        f0 = (mel_f0.exp() - 1) * 700
+        return f0
+
+
+class Wav2Mel:
+    def __init__(self, args, device=None):
+        self.args = args
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = device
         self.stft = STFT(
-            44100,
-            128,
-            2048,
-            2048,
-            512,
-            40,
-            16000
+            self.args.mel.sampling_rate,
+            self.args.mel.num_mels,
+            self.args.mel.n_fft,
+            self.args.mel.win_size,
+            self.args.mel.hop_size,
+            self.args.mel.fmin,
+            self.args.mel.fmax
         )
         self.resample_kernel = {}
 
@@ -96,31 +113,26 @@ class TransformerF0Infer:
 
     def extract_mel(self, audio, sample_rate, keyshift=0):
         # resample
-        if sample_rate == self.args.data.block_size:
+        if sample_rate == self.args.mel.sampling_rate:
             audio_res = audio
         else:
             key_str = str(sample_rate)
             if key_str not in self.resample_kernel:
-                self.resample_kernel[key_str] = Resample(sample_rate, 44100,
+                self.resample_kernel[key_str] = Resample(sample_rate, self.args.mel.sampling_rate,
                                                          lowpass_filter_width=128).to(self.device)
             audio_res = self.resample_kernel[key_str](audio)
 
         # extract
         mel = self.extract_nvstft(audio_res, keyshift=keyshift)  # B, n_frames, bins
-        n_frames = int(audio.shape[1] // self.args.data.block_size) + 1
+        n_frames = int(audio.shape[1] // self.args.mel.hop_size) + 1
         if n_frames > int(mel.shape[1]):
             mel = torch.cat((mel, mel[:, -1:, :]), 1)
         if n_frames < int(mel.shape[1]):
             mel = mel[:, :n_frames, :]
         return mel
 
-    @torch.no_grad()
-    def __call__(self, audio, sr):
-        audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
-        mel = self.extract_mel(audio=audio, sample_rate=sr)
-        mel_f0 = self.model(mel=mel, infer=True)
-        f0 = (mel_f0.exp() - 1) * 700
-        return f0
+    def __call__(self, audio, sample_rate, keyshift=0):
+        return self.extract_mel(audio, sample_rate, keyshift=keyshift)
 
 
 class DotDict(dict):
