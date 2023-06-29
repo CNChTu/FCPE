@@ -1,1 +1,43 @@
-
+data:
+  f0_extractor: 'crepe' # 'parselmouth', 'dio', 'harvest', or 'crepe'
+  us_uv: true
+  f0_min: 65 # about C2
+  f0_max: 800 # about G5
+  duration: 0.3483 # Audio duration during training, must be less than the duration of the shortest audio clip
+  train_path: op_data/train # Create a folder named "audio" under this path and put the audio clip in it
+  valid_path: op_data/val # Create a folder named "audio" under this path and put the audio clip in it
+  extensions: # List of extension included in the data collection
+    - wav
+mel:
+  sampling_rate: 44100
+  num_mels: 128
+  n_fft: 2048
+  win_size: 2048
+  hop_size: 512 # should be same as data.block_size
+  fmin: 40
+  fmax: 16000
+model:
+  type: 'TransformerF0'
+  input_channel: 128
+  n_layers: 12
+  n_chans: 512
+  n_spk: 2 # max number of speakers
+device: cuda
+env:
+  expdir: exp/f0_test3
+  gpu_id: 0
+train:
+  num_workers: 2 # If your cpu and gpu are both very strong, set to 0 may be faster!
+  amp_dtype: fp32 # naive model only can ues fp32, else nan
+  batch_size: 128
+  cache_all_data: true # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
+  cache_device: 'cuda' # Set to 'cuda' to cache the data into the Graphics-Memory, fastest speed for strong gpu
+  epochs: 100000
+  interval_log: 100
+  interval_val: 1000
+  interval_force_save: 1000
+  lr: 0.0005
+  decay_step: 100000
+  gamma: 0.5
+  weight_decay: 0
+  save_opt: false
