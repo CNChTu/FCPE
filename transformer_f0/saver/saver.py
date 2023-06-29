@@ -19,7 +19,7 @@ class Saver(object):
             initial_global_step=-1):
 
         self.expdir = args.env.expdir
-        self.sample_rate = args.data.sampling_rate
+        self.sample_rate = args.mel.sampling_rate
 
         # cold start
         self.global_step = initial_global_step
