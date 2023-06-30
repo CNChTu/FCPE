@@ -8,6 +8,7 @@ import yaml
 import datetime
 import torch
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 from . import utils
 from torch.utils.tensorboard import SummaryWriter
 
@@ -101,7 +102,6 @@ class Saver(object):
         plt.plot(f0_gt, color='b', linestyle='-')
         plt.plot(f0_pr, color='r', linestyle='-')
         self.writer.add_figure(name, fig, self.global_step)
-        plt.cla()
 
     def get_interval_time(self, update=True):
         cur_time = time.time()
