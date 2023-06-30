@@ -10,6 +10,14 @@ from .pcmer import PCmer
 from .nvSTFT import STFT
 
 
+def l2_regularization(model, l2_alpha):
+    l2_loss = []
+    for module in model.modules():
+        if type(module) is nn.Conv2d:
+            l2_loss.append((module.weight ** 2).sum() / 2.0)
+    return l2_alpha * sum(l2_loss)
+
+
 class TransformerF0(nn.Module):
     def __init__(
             self,
@@ -17,8 +25,19 @@ class TransformerF0(nn.Module):
             out_dims=1,
             n_layers=12,
             n_chans=512,
+            loss_mse_scale=10,
+            loss_l2_regularization=False,
+            loss_l2_regularization_scale=1,
+            loss_grad1_mse=False,
+            loss_grad1_mse_scale=1,
     ):
         super().__init__()
+        self.loss_mse_scale = loss_mse_scale if (loss_mse_scale is not None) else 10
+        self.loss_l2_regularization = loss_l2_regularization if (loss_l2_regularization is not None) else False
+        self.loss_l2_regularization_scale = loss_l2_regularization_scale if (loss_l2_regularization_scale
+                                                                             is not None) else 1
+        self.loss_grad1_mse = loss_grad1_mse if (loss_grad1_mse is not None) else False
+        self.loss_grad1_mse_scale = loss_grad1_mse_scale if (loss_grad1_mse_scale is not None) else 1
 
         # conv in stack
         self.stack = nn.Sequential(
@@ -55,7 +74,17 @@ class TransformerF0(nn.Module):
         x = self.norm(x)
         x = self.dense_out(x)
         if not infer:
-            x = 10 * F.mse_loss(x, (1 + gt_f0 / 700).log())
+            gt_f0 = (1 + gt_f0 / 700).log()  # mel f0
+            loss_all = self.loss_mse_scale * F.mse_loss(x, gt_f0)  # mes loss
+            # l2 regularization
+            if self.loss_l2_regularization:
+                loss_all = loss_all + l2_regularization(model=self, l2_alpha=self.loss_l2_regularization_scale)
+            # grad1 mse loss
+            if self.loss_grad1_mse:
+                gt_f0 = gt_f0[-1:] - gt_f0[:-2]
+                x = x[1:] - x[:-2]
+                loss_all = loss_all + self.loss_grad1_mse_scale * F.mse_loss(x, gt_f0)
+            x = loss_all
         return x
 
 
