@@ -5,8 +5,10 @@ from torch.nn.utils import weight_norm
 import os
 import yaml
 from torchaudio.transforms import Resample
+from siren import Sine
 
 from .pcmer import PCmer
+from .pcmer_siren import PCmer as PCmerS
 from .nvSTFT import STFT
 
 
@@ -25,6 +27,7 @@ class TransformerF0(nn.Module):
             out_dims=1,
             n_layers=12,
             n_chans=512,
+            use_siren=False,
             loss_mse_scale=10,
             loss_l2_regularization=False,
             loss_l2_regularization_scale=1,
@@ -32,6 +35,7 @@ class TransformerF0(nn.Module):
             loss_grad1_mse_scale=1,
     ):
         super().__init__()
+        use_siren = False if (use_siren is None) else use_siren
         self.loss_mse_scale = loss_mse_scale if (loss_mse_scale is not None) else 10
         self.loss_l2_regularization = loss_l2_regularization if (loss_l2_regularization is not None) else False
         self.loss_l2_regularization_scale = loss_l2_regularization_scale if (loss_l2_regularization_scale
@@ -40,21 +44,32 @@ class TransformerF0(nn.Module):
         self.loss_grad1_mse_scale = loss_grad1_mse_scale if (loss_grad1_mse_scale is not None) else 1
 
         # conv in stack
+        _leaky = Sine(w0=1) if use_siren else nn.LeakyReLU()
         self.stack = nn.Sequential(
             nn.Conv1d(input_channel, n_chans, 3, 1, 1),
             nn.GroupNorm(4, n_chans),
-            nn.LeakyReLU(),
+            _leaky,
             nn.Conv1d(n_chans, n_chans, 3, 1, 1))
 
         # transformer
-        self.decoder = PCmer(
-            num_layers=n_layers,
-            num_heads=8,
-            dim_model=n_chans,
-            dim_keys=n_chans,
-            dim_values=n_chans,
-            residual_dropout=0.1,
-            attention_dropout=0.1)
+        if use_siren:
+            self.decoder = PCmerS(
+                num_layers=n_layers,
+                num_heads=8,
+                dim_model=n_chans,
+                dim_keys=n_chans,
+                dim_values=n_chans,
+                residual_dropout=0.1,
+                attention_dropout=0.1)
+        else:
+            self.decoder = PCmer(
+                num_layers=n_layers,
+                num_heads=8,
+                dim_model=n_chans,
+                dim_keys=n_chans,
+                dim_values=n_chans,
+                residual_dropout=0.1,
+                attention_dropout=0.1)
         self.norm = nn.LayerNorm(n_chans)
 
         # out
@@ -81,8 +96,8 @@ class TransformerF0(nn.Module):
                 loss_all = loss_all + l2_regularization(model=self, l2_alpha=self.loss_l2_regularization_scale)
             # grad1 mse loss
             if self.loss_grad1_mse:
-                gt_f0 = gt_f0[-1:] - gt_f0[:-2]
-                x = x[-1:] - x[:-2]
+                gt_f0 = gt_f0[:, 1:, :] - gt_f0[:, :-2, :]
+                x = x[:, 1:, :] - x[:, :-2, :]
                 loss_all = loss_all + self.loss_grad1_mse_scale * F.mse_loss(x, gt_f0)
             x = loss_all
         return x
@@ -99,6 +114,7 @@ class TransformerF0Infer:
             out_dims=1,
             n_layers=self.args.model.n_layers,
             n_chans=self.args.model.n_chans,
+            use_siren=self.args.model.use_siren,
         )
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'

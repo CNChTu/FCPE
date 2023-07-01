@@ -35,6 +35,7 @@ if __name__ == '__main__':
             out_dims=1,
             n_layers=args.model.n_layers,
             n_chans=args.model.n_chans,
+            use_siren=args.model.use_siren,
             loss_mse_scale=args.loss.loss_mse_scale,
             loss_l2_regularization=args.loss.loss_l2_regularization,
             loss_l2_regularization_scale=args.loss.loss_l2_regularization_scale,
