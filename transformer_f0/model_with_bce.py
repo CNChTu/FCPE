@@ -50,7 +50,7 @@ class TransformerF0BCE(nn.Module):
         self.f0_min = f0_min if (f0_min is not None) else 32.70
         self.confidence = confidence if (confidence is not None) else False
 
-        self.cent_table = torch.Tensor(np.linspace(self.f0_to_cent(f0_min), self.f0_to_cent(f0_max), out_dims))
+        self.cent_table = torch.Tensor(np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0], out_dims))
         self.register_buffer("cent_table", self.cent_table)
 
         # conv in stack
