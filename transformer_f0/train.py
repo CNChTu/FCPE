@@ -46,7 +46,7 @@ if __name__ == '__main__':
     elif args.model.type == 'TransformerF0BCE':
         model = TransformerF0BCE(
             input_channel=args.model.input_channel,
-            out_dims=360,
+            out_dims=args.model.out_dims,
             n_layers=args.model.n_layers,
             n_chans=args.model.n_chans,
             use_siren=args.model.use_siren,
