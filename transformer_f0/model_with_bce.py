@@ -50,7 +50,9 @@ class TransformerF0BCE(nn.Module):
         self.f0_min = f0_min if (f0_min is not None) else 32.70
         self.confidence = confidence if (confidence is not None) else False
 
-        self.cent_table_b = torch.Tensor(np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0], out_dims))
+        self.cent_table_b = torch.Tensor(
+            np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0],
+                        out_dims))
         self.register_buffer("cent_table", self.cent_table_b)
 
         # conv in stack
@@ -87,7 +89,7 @@ class TransformerF0BCE(nn.Module):
         self.dense_out = weight_norm(
             nn.Linear(n_chans, self.n_out))
 
-    def forward(self, mel, infer=True, gt_f0=None):
+    def forward(self, mel, infer=True, gt_f0=None, return_hz_f0=False):
         """
         input:
             B x n_frames x n_unit
@@ -110,6 +112,8 @@ class TransformerF0BCE(nn.Module):
         if infer:
             x = self.cents_decoder(x)
             x = self.cent_to_f0(x)
+            if not return_hz_f0:
+                x = (1 + x / 700).log()
         return x
 
     def cents_decoder(self, y):
