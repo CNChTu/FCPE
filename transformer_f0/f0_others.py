@@ -103,7 +103,7 @@ class F0_Extractor:
 
         elif self.f0_extractor == "transformer_f0":
             if self.transformer_f0 is None:
-                from transformer_f0.model import TransformerF0Infer
+                from .model import TransformerF0Infer
                 self.transformer_f0 = TransformerF0Infer(model_path='exp/f0_test3/model_346000.pt')
             f0 = self.transformer_f0(audio=raw_audio, sr=self.sample_rate)
             f0 = f0.transpose(1, 2)
