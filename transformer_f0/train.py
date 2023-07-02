@@ -4,6 +4,7 @@ from torch.optim import lr_scheduler
 from transformer_f0.saver import utils
 from transformer_f0.data_loaders import get_data_loaders
 from transformer_f0.model import TransformerF0
+from transformer_f0.model_with_bce import TransformerF0BCE
 from transformer_f0.solver import train
 
 
@@ -41,6 +42,22 @@ if __name__ == '__main__':
             loss_l2_regularization_scale=args.loss.loss_l2_regularization_scale,
             loss_grad1_mse=args.loss.loss_grad1_mse,
             loss_grad1_mse_scale=args.loss.loss_grad1_mse_scale,
+        )
+    elif args.model.type == 'TransformerF0BCE':
+        model = TransformerF0BCE(
+            input_channel=args.model.input_channel,
+            out_dims=1,
+            n_layers=args.model.n_layers,
+            n_chans=args.model.n_chans,
+            use_siren=args.model.use_siren,
+            loss_mse_scale=args.loss.loss_mse_scale,
+            loss_l2_regularization=args.loss.loss_l2_regularization,
+            loss_l2_regularization_scale=args.loss.loss_l2_regularization_scale,
+            loss_grad1_mse=args.loss.loss_grad1_mse,
+            loss_grad1_mse_scale=args.loss.loss_grad1_mse_scale,
+            f0_max=args.model.f0_max,
+            f0_min=args.model.f0_min,
+            confidence=args.model.confidence,
         )
 
     else:
