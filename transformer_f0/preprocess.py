@@ -175,7 +175,7 @@ if __name__ == '__main__':
     wav2mel = Wav2Mel(args)
 
     # preprocess training set
-    preprocess(args.data.train_path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, device=device, extensions=['wav'])
+    preprocess(args.data.train_path, f0_extractor, wav2mel, uv_interp=args.data.us_uv, read_sr=44100, device=device, extensions=['wav'])
 
     # preprocess validation set
-    preprocess(args.data.valid_path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, device=device, extensions=['wav'])
+    preprocess(args.data.valid_path, f0_extractor, wav2mel, uv_interp=args.data.us_uv, read_sr=44100, device=device, extensions=['wav'])
