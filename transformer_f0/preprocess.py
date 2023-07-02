@@ -6,9 +6,9 @@ import torch
 import argparse
 import shutil
 from tqdm import tqdm
-from model import Wav2Mel
+from transformer_f0.model import Wav2Mel
 import yaml
-from f0_others import F0_Extractor
+from transformer_f0.f0_others import F0_Extractor
 
 
 def parse_args(args=None, namespace=None):
@@ -61,7 +61,7 @@ def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, devi
             audio = librosa.to_mono(audio)
 
         # extract mel
-        mel = wav2mel(audio=torch.from_numpy(audio).float().unsqueeze(0).to(device), sr=temp_sr)
+        mel = wav2mel(audio=torch.from_numpy(audio).float().unsqueeze(0).to(device), sample_rate=temp_sr).squeeze().to('cpu').numpy()
 
         # extract f0
         f0 = f0_extractor.extract(audio, uv_interp=False, sr=temp_sr)

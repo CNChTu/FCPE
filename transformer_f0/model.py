@@ -7,9 +7,9 @@ import yaml
 from torchaudio.transforms import Resample
 from siren import Sine
 
-from .pcmer import PCmer
-from .pcmer_siren import PCmer as PCmerS
-from .nvSTFT import STFT
+from transformer_f0.pcmer import PCmer
+from transformer_f0.pcmer_siren import PCmer as PCmerS
+from transformer_f0.nvSTFT import STFT
 
 
 def l2_regularization(model, l2_alpha):
