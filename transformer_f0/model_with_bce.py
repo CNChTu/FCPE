@@ -118,15 +118,15 @@ class TransformerF0(nn.Module):
     
 
     def f0_to_cent(self,cent):
-        return 10*torch.square(cent/1200)
+        return 10.*torch.square(cent/1200.)
     
     def cent_to_f0(self,f0):
-        return 1200*torch.log2(f0/10)
+        return 1200.*torch.log2(f0/10)
 
     def gaussian_blurred_cent(self, cents): #cents: [B,N,1]
         B,N,_ = cents.size()
         ci = self.cent_table[None,None,:].expand(B,N,-1)
-        return torch.exp(-torch.square(ci-cents)/1250)
+        return torch.exp(-torch.square(ci-cents)/1250.)
     
 
 class TransformerF0Infer:
