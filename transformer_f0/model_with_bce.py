@@ -124,9 +124,10 @@ class TransformerF0BCE(nn.Module):
         return 1200.*torch.log2(f0/10.)
 
     def gaussian_blurred_cent(self, cents):  # cents: [B,N,1]
+        mask = cents<=0.1 and cents>=1200.*np.log2(self.f0_max/10.)
         B, N, _ = cents.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
-        return torch.exp(-torch.square(ci - cents) / 1250)
+        return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()
 
 
 class TransformerF0Infer:
