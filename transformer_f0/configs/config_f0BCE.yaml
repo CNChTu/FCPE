@@ -19,6 +19,7 @@ mel:
 model:
   type: 'TransformerF0BCE'
   input_channel: 128 # same as mel.num_mels
+  out_dims: 360
   n_layers: 12
   n_chans: 512
   use_siren: false
