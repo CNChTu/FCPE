@@ -96,8 +96,8 @@ class TransformerF0(nn.Module):
                 loss_all = loss_all + l2_regularization(model=self, l2_alpha=self.loss_l2_regularization_scale)
             # grad1 mse loss
             if self.loss_grad1_mse:
-                gt_f0 = gt_f0[:, 1:, :] - gt_f0[:, :-2, :]
-                x = x[:, 1:, :] - x[:, :-2, :]
+                gt_f0 = gt_f0[:, 1:, :] - gt_f0[:, :-1, :]
+                x = x[:, 1:, :] - x[:, :-1, :]
                 loss_all = loss_all + self.loss_grad1_mse_scale * F.mse_loss(x, gt_f0)
             x = loss_all
         return x
