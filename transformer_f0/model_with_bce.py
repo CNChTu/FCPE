@@ -36,7 +36,8 @@ class TransformerF0BCE(nn.Module):
             loss_grad1_mse_scale=1,
             f0_max=1975.5,
             f0_min=32.70,
-            confidence=False
+            confidence=False,
+            threshold = 0.05
     ):
         super().__init__()
         use_siren = False if (use_siren is None) else use_siren
@@ -49,6 +50,7 @@ class TransformerF0BCE(nn.Module):
         self.f0_max = f0_max if (f0_max is not None) else 1975.5
         self.f0_min = f0_min if (f0_min is not None) else 32.70
         self.confidence = confidence if (confidence is not None) else False
+        self.threshold = threshold
 
         self.cent_table_b = torch.Tensor(
             np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0],
@@ -116,16 +118,24 @@ class TransformerF0BCE(nn.Module):
                 x = (1 + x / 700).log()
         return x
 
-    def cents_decoder(self, y):
+    def cents_decoder(self, y ,mask = True):
         B, N, _ = y.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
-        return torch.sum(ci * y, dim=-1, keepdim=True) / torch.sum(y, dim=-1, keepdim=True)
+        rtn = torch.sum(ci * y, dim=-1, keepdim=True) / torch.sum(y, dim=-1, keepdim=True)  # cents: [B,N,1]
+        if mask:
+            confident = torch.max(y, dim=-1 ,keepdim=True)
+            confident_mask = (confident > self.threshold).float()
+            rtn = rtn * confident_mask
+        if self.confidence:
+            return rtn, confident
+        else:
+            return rtn
 
     def cent_to_f0(self,cent):
-        return 10.*torch.pow(2,cent/1200.)
+        return 10. * 2 ** (cent / 1200.)
     
     def f0_to_cent(self,f0):
-        return 1200.*torch.log2(f0/10.)
+        return 1200. * torch.log2(f0/10.)
 
     def gaussian_blurred_cent(self, cents):  # cents: [B,N,1]
         mask = cents<=0.1 and cents>=1200.*np.log2(self.f0_max/10.)
