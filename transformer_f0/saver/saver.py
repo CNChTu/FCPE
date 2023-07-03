@@ -10,6 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 from . import utils
+import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -93,11 +94,18 @@ class Saver(object):
         for k, v in dict.items():
             self.writer.add_audio(k, v, global_step=self.global_step, sample_rate=self.sample_rate)
 
-    def log_f0(self, name, f0_pr, f0_gt):
+    def log_f0(self, name, f0_pr, f0_gt, inuv=False):
         f0_gt = (1 + f0_gt / 700).log()
-        name = name + '_f0'
+        name = (name + '_f0_inuv') if inuv else (name + '_f0')
         f0_pr = f0_pr.squeeze().cpu().numpy()
         f0_gt = f0_gt.squeeze().cpu().numpy()
+        if inuv:
+            uv = f0_pr == 0
+            if len(f0_pr[~uv]) > 0:
+                f0_pr[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0_pr[~uv])
+            uv = f0_gt == 0
+            if len(f0_gt[~uv]) > 0:
+                f0_gt[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0_gt[~uv])
         fig = plt.figure()
         plt.plot(f0_gt, color='b', linestyle='-')
         plt.plot(f0_pr, color='r', linestyle='-')
