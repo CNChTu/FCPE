@@ -124,7 +124,8 @@ class TransformerF0BCE(nn.Module):
         rtn = torch.sum(ci * y, dim=-1, keepdim=True) / torch.sum(y, dim=-1, keepdim=True)  # cents: [B,N,1]
         if mask:
             confident = torch.max(y, dim=-1 ,keepdim=True)[0]
-            confident_mask = (confident > self.threshold).float()
+            confident_mask = torch.ones_like(confident)
+            confident_mask[confident <= self.threshold] = float("-INF")
             rtn = rtn * confident_mask
         if self.confidence:
             return rtn, confident
