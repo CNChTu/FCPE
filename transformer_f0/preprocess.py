@@ -31,7 +31,7 @@ def parse_args(args=None, namespace=None):
 
 
     # run  
-def process(file,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp):
+def process(file,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp,f0_extractor):
     binfile = file + '.npy'
     path_srcfile = os.path.join(path_srcdir, file)
     path_f0file = os.path.join(path_f0dir, binfile)
@@ -66,9 +66,9 @@ def process(file,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_inte
         shutil.move(path_srcfile, os.path.dirname(path_skipfile))
         print('This file has been moved to ' + path_skipfile)
 
-def loop_process(filelist, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp):
+def loop_process(filelist, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp,f0_extractor):
     for file in tqdm(filelist, total=len(filelist)):
-        process(file, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp)
+        process(file, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp,f0_extractor)
 
 def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, device='cuda', extensions=['wav'], num_workers = 4):
     path_srcdir = os.path.join(path, 'audio')
@@ -95,7 +95,7 @@ def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, devi
            start = int(i * len(filelist) / num_workers)
            end = int((i + 1) * len(filelist) / num_workers)
            file_chunk = filelist[start:end]
-           tasks.append(executor.submit(loop_process, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp))
+           tasks.append(executor.submit(loop_process, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp,f0_extractor))
 
        for task in tqdm(tasks):
            task.result()
