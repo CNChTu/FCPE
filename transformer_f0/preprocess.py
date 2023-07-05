@@ -9,7 +9,7 @@ from tqdm import tqdm
 from transformer_f0.model import Wav2Mel
 import yaml
 from transformer_f0.f0_others import F0_Extractor
-
+from concurrent.futures import ProcessPoolExecutor
 
 def parse_args(args=None, namespace=None):
     """Parse command-line arguments."""
@@ -31,7 +31,7 @@ def parse_args(args=None, namespace=None):
 
 
     # run  
-def process(file):
+def process(file,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp):
     binfile = file + '.npy'
     path_srcfile = os.path.join(path_srcdir, file)
     path_f0file = os.path.join(path_f0dir, binfile)
@@ -95,7 +95,7 @@ def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, devi
            start = int(i * len(filelist) / num_workers)
            end = int((i + 1) * len(filelist) / num_workers)
            file_chunk = filelist[start:end]
-           tasks.append(executor.submit(loop_process, file_chunk))
+           tasks.append(executor.submit(loop_process, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp))
 
        for task in tqdm(tasks):
            task.result()
