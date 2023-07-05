@@ -23,6 +23,7 @@ model:
   n_layers: 12
   n_chans: 512
   use_siren: false
+  use_full: false
   confidence: false
   f0_min: 32.70
   f0_max: 1975.5
