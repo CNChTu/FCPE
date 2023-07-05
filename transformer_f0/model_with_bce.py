@@ -10,6 +10,8 @@ import numpy as np
 
 from transformer_f0.pcmer import PCmer
 from transformer_f0.pcmer_siren import PCmer as PCmerS
+from transformer_f0.pcmer_full import PCmer as PCmerF
+from transformer_f0.pcmer_siren_full import PCmer as PCmerFS
 from transformer_f0.nvSTFT import STFT
 
 
@@ -29,6 +31,7 @@ class TransformerF0BCE(nn.Module):
             n_layers=12,
             n_chans=512,
             use_siren=False,
+            use_full=False,
             loss_mse_scale=10,
             loss_l2_regularization=False,
             loss_l2_regularization_scale=1,
@@ -41,6 +44,7 @@ class TransformerF0BCE(nn.Module):
     ):
         super().__init__()
         use_siren = False if (use_siren is None) else use_siren
+        use_full = False if (use_full is None) else use_full
         self.loss_mse_scale = loss_mse_scale if (loss_mse_scale is not None) else 10
         self.loss_l2_regularization = loss_l2_regularization if (loss_l2_regularization is not None) else False
         self.loss_l2_regularization_scale = loss_l2_regularization_scale if (loss_l2_regularization_scale
@@ -67,23 +71,43 @@ class TransformerF0BCE(nn.Module):
 
         # transformer
         if use_siren:
-            self.decoder = PCmerS(
-                num_layers=n_layers,
-                num_heads=8,
-                dim_model=n_chans,
-                dim_keys=n_chans,
-                dim_values=n_chans,
-                residual_dropout=0.1,
-                attention_dropout=0.1)
+            if use_full:
+                self.decoder = PCmerFS(
+                    num_layers=n_layers,
+                    num_heads=8,
+                    dim_model=n_chans,
+                    dim_keys=n_chans,
+                    dim_values=n_chans,
+                    residual_dropout=0.1,
+                    attention_dropout=0.1)
+            else:
+                self.decoder = PCmerS(
+                    num_layers=n_layers,
+                    num_heads=8,
+                    dim_model=n_chans,
+                    dim_keys=n_chans,
+                    dim_values=n_chans,
+                    residual_dropout=0.1,
+                    attention_dropout=0.1)
         else:
-            self.decoder = PCmer(
-                num_layers=n_layers,
-                num_heads=8,
-                dim_model=n_chans,
-                dim_keys=n_chans,
-                dim_values=n_chans,
-                residual_dropout=0.1,
-                attention_dropout=0.1)
+            if use_full:
+                self.decoder = PCmerF(
+                    num_layers=n_layers,
+                    num_heads=8,
+                    dim_model=n_chans,
+                    dim_keys=n_chans,
+                    dim_values=n_chans,
+                    residual_dropout=0.1,
+                    attention_dropout=0.1)
+            else:
+                self.decoder = PCmer(
+                    num_layers=n_layers,
+                    num_heads=8,
+                    dim_model=n_chans,
+                    dim_keys=n_chans,
+                    dim_values=n_chans,
+                    residual_dropout=0.1,
+                    attention_dropout=0.1)
         self.norm = nn.LayerNorm(n_chans)
 
         # out
