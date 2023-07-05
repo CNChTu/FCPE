@@ -52,6 +52,7 @@ def test(args, model, loader_test, saver):
             saver.log_spec(data['name'][0], data['mel'], data['mel'])
 
             saver.log_f0(data['name'][0], f0, data['f0'])
+            saver.log_f0(data['name'][0], f0, data['f0'], inuv=True)
 
     # report
     test_loss /= args.train.batch_size
