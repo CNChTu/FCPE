@@ -66,9 +66,9 @@ def process(file,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_inte
         shutil.move(path_srcfile, os.path.dirname(path_skipfile))
         print('This file has been moved to ' + path_skipfile)
 
-def loop_process(filelist):
+def loop_process(filelist, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp):
     for file in tqdm(filelist, total=len(filelist)):
-        process(file)
+        process(file, file_chunk,path_srcdir,path_f0dir,path_meldir,path_skipdir,read_sr,uv_interp)
 
 def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=44100, device='cuda', extensions=['wav'], num_workers = 4):
     path_srcdir = os.path.join(path, 'audio')
