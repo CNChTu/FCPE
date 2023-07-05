@@ -159,7 +159,7 @@ class F0Dataset(Dataset):
                 audio = np.load(path_audio)
                 audio = torch.from_numpy(audio).float().unsqueeze(0).to(device)
                 if random.choice((False, True)):
-                    keyshift = 5 * random.uniform(-12, 12)
+                    keyshift = random.uniform(-12, 12)
                     f0 = 2 ** (keyshift / 12) * f0
                 else:
                     keyshift = 0
@@ -210,7 +210,7 @@ class F0Dataset(Dataset):
             audio = np.load(path_audio)
             audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
             if random.choice((False, True)):
-                keyshift = 5 * random.uniform(-5, 5)
+                keyshift = random.uniform(-12, 12)
                 f0 = 2 ** (keyshift / 12) * f0
             else:
                 keyshift = 0
