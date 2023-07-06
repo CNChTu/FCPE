@@ -177,10 +177,19 @@ class TransformerF0Infer:
         self.args = DotDict(args)
         model = TransformerF0BCE(
             input_channel=self.args.model.input_channel,
-            out_dims=1,
+            out_dims=self.args.model.out_dims,
             n_layers=self.args.model.n_layers,
             n_chans=self.args.model.n_chans,
             use_siren=self.args.model.use_siren,
+            use_full=self.args.model.use_full,
+            loss_mse_scale=self.args.loss.loss_mse_scale,
+            loss_l2_regularization=self.args.loss.loss_l2_regularization,
+            loss_l2_regularization_scale=self.args.loss.loss_l2_regularization_scale,
+            loss_grad1_mse=self.args.loss.loss_grad1_mse,
+            loss_grad1_mse_scale=self.args.loss.loss_grad1_mse_scale,
+            f0_max=self.args.model.f0_max,
+            f0_min=self.args.model.f0_min,
+            confidence=self.args.model.confidence,
         )
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -196,8 +205,9 @@ class TransformerF0Infer:
     def __call__(self, audio, sr):
         audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
         mel = self.wav2mel(audio=audio, sample_rate=sr)
-        mel_f0 = self.model(mel=mel, infer=True)
-        f0 = (mel_f0.exp() - 1) * 700
+        mel_f0 = self.model(mel=mel, infer=True, return_hz_f0=True)
+        #f0 = (mel_f0.exp() - 1) * 700
+        f0 = mel_f0
         return f0
 
 
