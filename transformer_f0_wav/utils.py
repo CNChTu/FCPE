@@ -21,7 +21,7 @@ def add_noise_slice(wav, sr, duration, add_factor = 0.50):
    for n in range(n_frames):
       left, right = int(n * slice_length), int((n + 1) * slice_length)
       offset = random.randint(left,right-slice_length_noise)
-      wav[offset:offset+slice_length_noise] = add_noise(wav[offset:offset+slice_length_noise])
+      if wav[offset:offset+slice_length_noise].shape[0] != 0:
+         wav[offset:offset+slice_length_noise] = add_noise(wav[offset:offset+slice_length_noise])
    return wav
-      
       
