@@ -216,18 +216,19 @@ class F0Dataset(Dataset):
             path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
             audio = np.load(path_audio)
             audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
-
-            if self.aug_noise and bool(random.randint(0, 1)):
-                if bool(random.randint(0, 1)):
-                    ut.add_noise(audio)
-                else:
-                    ut.add_noise_slice(audio,self.sample_rate,self.duration)
-
+            
             if random.choice((False, True)):
                 keyshift = random.uniform(-12, 12)
                 f0 = 2 ** (keyshift / 12) * f0
             else:
                 keyshift = 0
+                
+            if self.aug_noise and bool(random.randint(0, 1)):
+                if bool(random.randint(0, 1)):
+                    audio = ut.add_noise(audio)
+                else:
+                    audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
+
             mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0)
         else:
             mel = mel[start_frame: start_frame + units_frame_len]
