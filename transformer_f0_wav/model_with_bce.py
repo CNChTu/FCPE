@@ -213,7 +213,9 @@ class TransformerF0Infer:
 
 class Wav2Mel:
     def __init__(self, args, device=None):
-        self.args = args
+        #self.args = args
+        self.sampling_rate = args.mel.sampling_rate
+        self.hop_size = args.mel.hop_size
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
@@ -234,18 +236,18 @@ class Wav2Mel:
 
     def extract_mel(self, audio, sample_rate, keyshift=0):
         # resample
-        if sample_rate == self.args.mel.sampling_rate:
+        if sample_rate == self.sampling_rate:
             audio_res = audio
         else:
             key_str = str(sample_rate)
             if key_str not in self.resample_kernel:
-                self.resample_kernel[key_str] = Resample(sample_rate, self.args.mel.sampling_rate,
+                self.resample_kernel[key_str] = Resample(sample_rate, self.sampling_rate,
                                                          lowpass_filter_width=128).to(self.device)
             audio_res = self.resample_kernel[key_str](audio)
 
         # extract
         mel = self.extract_nvstft(audio_res, keyshift=keyshift)  # B, n_frames, bins
-        n_frames = int(audio.shape[1] // self.args.mel.hop_size) + 1
+        n_frames = int(audio.shape[1] // self.hop_size) + 1
         if n_frames > int(mel.shape[1]):
             mel = torch.cat((mel, mel[:, -1:, :]), 1)
         if n_frames < int(mel.shape[1]):
