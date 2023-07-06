@@ -58,6 +58,7 @@ def get_data_loaders(args):
         waveform_sec=args.data.duration,
         hop_size=args.mel.hop_size,
         sample_rate=args.mel.sampling_rate,
+        duration=args.data.duration,
         load_all_data=args.train.cache_all_data,
         whole_audio=False,
         extensions=args.data.extensions,
@@ -78,6 +79,7 @@ def get_data_loaders(args):
         waveform_sec=args.data.duration,
         hop_size=args.mel.hop_size,
         sample_rate=args.mel.sampling_rate,
+        duration=args.data.duration,
         load_all_data=args.train.cache_all_data,
         whole_audio=True,
         extensions=args.data.extensions,
@@ -101,6 +103,7 @@ class F0Dataset(Dataset):
             waveform_sec,
             hop_size,
             sample_rate,
+            duration,
             load_all_data=True,
             whole_audio=False,
             extensions=['wav'],
@@ -115,6 +118,8 @@ class F0Dataset(Dataset):
         self.sample_rate = sample_rate
         self.hop_size = hop_size
         self.path_root = path_root
+        self.duration = duration
+        self.aug_noise = aug_noise
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -158,11 +163,6 @@ class F0Dataset(Dataset):
                 '''
                 path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
                 audio = np.load(path_audio)
-                if aug_noise and bool(random.randint(0, 1)):
-                    if bool(random.randint(0, 1)):
-                        ut.add_noise(audio)
-                    else:
-                        ut.add_noise_slice(audio,self.sample_rate,0.3483)
 
                 audio = torch.from_numpy(audio).float().unsqueeze(0).to(device)
                 if random.choice((False, True)):
@@ -216,12 +216,19 @@ class F0Dataset(Dataset):
             path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
             audio = np.load(path_audio)
             audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
+
+            if self.aug_noise and bool(random.randint(0, 1)):
+                if bool(random.randint(0, 1)):
+                    ut.add_noise(audio)
+                else:
+                    ut.add_noise_slice(audio,self.sample_rate,self.duration)
+
             if random.choice((False, True)):
                 keyshift = random.uniform(-12, 12)
                 f0 = 2 ** (keyshift / 12) * f0
             else:
                 keyshift = 0
-            mel = self.wav2mel(audio, sample_rate=16000, keyshift=keyshift).squeeze(0)
+            mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0)
         else:
             mel = mel[start_frame: start_frame + units_frame_len]
 
