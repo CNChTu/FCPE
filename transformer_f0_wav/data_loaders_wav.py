@@ -230,6 +230,7 @@ class F0Dataset(Dataset):
                     audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
 
             mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0)
+            mel = mel[start_frame: start_frame + units_frame_len]
         else:
             mel = mel[start_frame: start_frame + units_frame_len]
 
