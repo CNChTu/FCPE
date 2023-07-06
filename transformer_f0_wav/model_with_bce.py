@@ -220,13 +220,13 @@ class Wav2Mel:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
         self.stft = STFT(
-            self.args.mel.sampling_rate,
-            self.args.mel.num_mels,
-            self.args.mel.n_fft,
-            self.args.mel.win_size,
-            self.args.mel.hop_size,
-            self.args.mel.fmin,
-            self.args.mel.fmax
+            args.mel.sampling_rate,
+            args.mel.num_mels,
+            args.mel.n_fft,
+            args.mel.win_size,
+            args.mel.hop_size,
+            args.mel.fmin,
+            args.mel.fmax
         )
         self.resample_kernel = {}
 
