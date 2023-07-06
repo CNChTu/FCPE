@@ -9,7 +9,7 @@ import random
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from transformer_f0_wav.model_with_bce import Wav2Mel
-
+import transformer_f0_wav.utils as ut
 
 def traverse_dir(
         root_dir,
@@ -106,7 +106,8 @@ class F0Dataset(Dataset):
             extensions=['wav'],
             n_spk=1,
             device='cpu',
-            wav2mel=None
+            wav2mel=None,
+            aug_noise = True
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -157,6 +158,12 @@ class F0Dataset(Dataset):
                 '''
                 path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
                 audio = np.load(path_audio)
+                if aug_noise and bool(random.randint(0, 1)):
+                    if bool(random.randint(0, 1)):
+                        ut.add_noise(audio)
+                    else:
+                        ut.add_noise_slice(audio,self.sample_rate,0.3483)
+
                 audio = torch.from_numpy(audio).float().unsqueeze(0).to(device)
                 if random.choice((False, True)):
                     keyshift = random.uniform(-12, 12)
