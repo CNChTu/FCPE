@@ -227,6 +227,8 @@ class F0Dataset(Dataset):
                     audio = ut.add_noise(audio)
                 else:
                     audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
+            peak = np.abs(audio).max()
+            audio = 0.98 * audio / peak
             audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
             mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0)
             mel = mel[start_frame: start_frame + units_frame_len]
