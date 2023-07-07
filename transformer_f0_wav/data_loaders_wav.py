@@ -110,7 +110,8 @@ class F0Dataset(Dataset):
             n_spk=1,
             device='cpu',
             wav2mel=None,
-            aug_noise = True
+            aug_noise=True,
+            aug_flip=True
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -120,6 +121,7 @@ class F0Dataset(Dataset):
         self.path_root = path_root
         self.duration = duration
         self.aug_noise = aug_noise
+        self.aug_flip = aug_flip
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -232,6 +234,9 @@ class F0Dataset(Dataset):
 
         # load spk_id
         spk_id = data_buffer.get('spk_id')
+        if random.choice((False, False, True)) and self.aug_flip:
+            f0_frames = torch.flip(f0_frames, dims=[0])
+            mel = torch.flip(mel, dims=[0])
 
         return dict(mel=mel, f0=f0_frames, spk_id=spk_id, name=name, name_ext=name_ext)
 
