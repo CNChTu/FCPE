@@ -70,7 +70,7 @@ class STFT():
         self.mel_basis = {}
         self.hann_window = {}
     
-    def get_mel(self, y, keyshift=0, speed=1, center=False):
+    def get_mel(self, y, keyshift=0, speed=1, center=False, train=False):
         sampling_rate = self.target_sr
         n_mels     = self.n_mels
         n_fft      = self.n_fft
@@ -84,6 +84,12 @@ class STFT():
         n_fft_new = int(np.round(n_fft * factor))
         win_size_new = int(np.round(win_size * factor))
         hop_length_new = int(np.round(hop_length * speed))
+        if not train:
+            mel_basis = self.mel_basis
+            hann_window = self.hann_window
+        else:
+            mel_basis = {}
+            hann_window = {}
         
         if torch.min(y) < -1.:
             print('min value is ', torch.min(y))
@@ -91,13 +97,13 @@ class STFT():
             print('max value is ', torch.max(y))
         
         mel_basis_key = str(fmax)+'_'+str(y.device)
-        if mel_basis_key not in self.mel_basis:
+        if mel_basis_key not in mel_basis:
             mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax)
-            self.mel_basis[mel_basis_key] = torch.from_numpy(mel).float().to(y.device)
+            mel_basis[mel_basis_key] = torch.from_numpy(mel).float().to(y.device)
         
         keyshift_key = str(keyshift)+'_'+str(y.device)
-        if keyshift_key not in self.hann_window:
-            self.hann_window[keyshift_key] = torch.hann_window(win_size_new).to(y.device)
+        if keyshift_key not in hann_window:
+            hann_window[keyshift_key] = torch.hann_window(win_size_new).to(y.device)
         
         pad_left = (win_size_new - hop_length_new) //2
         pad_right = max((win_size_new- hop_length_new + 1) //2, win_size_new - y.size(-1) - pad_left)
@@ -108,7 +114,7 @@ class STFT():
         y = torch.nn.functional.pad(y.unsqueeze(1), (pad_left, pad_right), mode = mode)
         y = y.squeeze(1)
         
-        spec = torch.stft(y, n_fft_new, hop_length=hop_length_new, win_length=win_size_new, window=self.hann_window[keyshift_key],
+        spec = torch.stft(y, n_fft_new, hop_length=hop_length_new, win_length=win_size_new, window=hann_window[keyshift_key],
                           center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)                          
         spec = torch.sqrt(spec.real.pow(2) + spec.imag.pow(2) + (1e-9))
         if keyshift != 0:
@@ -117,7 +123,7 @@ class STFT():
             if resize < size:
                 spec = F.pad(spec, (0, 0, 0, size-resize))
             spec = spec[:, :size, :] * win_size / win_size_new   
-        spec = torch.matmul(self.mel_basis[mel_basis_key], spec)
+        spec = torch.matmul(mel_basis[mel_basis_key], spec)
         spec = dynamic_range_compression_torch(spec, clip_val=clip_val)
         return spec
     

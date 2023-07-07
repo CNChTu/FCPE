@@ -230,11 +230,11 @@ class Wav2Mel:
         )
         self.resample_kernel = {}
 
-    def extract_nvstft(self, audio, keyshift=0):
-        mel = self.stft.get_mel(audio, keyshift=keyshift).transpose(1, 2)  # B, n_frames, bins
+    def extract_nvstft(self, audio, keyshift=0, train=False):
+        mel = self.stft.get_mel(audio, keyshift=keyshift, train=train).transpose(1, 2)  # B, n_frames, bins
         return mel
 
-    def extract_mel(self, audio, sample_rate, keyshift=0):
+    def extract_mel(self, audio, sample_rate, keyshift=0, train=False):
         # resample
         if sample_rate == self.sampling_rate:
             audio_res = audio
@@ -246,7 +246,7 @@ class Wav2Mel:
             audio_res = self.resample_kernel[key_str](audio)
 
         # extract
-        mel = self.extract_nvstft(audio_res, keyshift=keyshift)  # B, n_frames, bins
+        mel = self.extract_nvstft(audio_res, keyshift=keyshift, train=train)  # B, n_frames, bins
         n_frames = int(audio.shape[1] // self.hop_size) + 1
         if n_frames > int(mel.shape[1]):
             mel = torch.cat((mel, mel[:, -1:, :]), 1)
@@ -254,8 +254,8 @@ class Wav2Mel:
             mel = mel[:, :n_frames, :]
         return mel
 
-    def __call__(self, audio, sample_rate, keyshift=0):
-        return self.extract_mel(audio, sample_rate, keyshift=keyshift)
+    def __call__(self, audio, sample_rate, keyshift=0, train=False):
+        return self.extract_mel(audio, sample_rate, keyshift=keyshift, train=train)
 
 
 class DotDict(dict):

@@ -164,16 +164,9 @@ class F0Dataset(Dataset):
                 path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
                 audio = np.load(path_audio)
 
-                audio = torch.from_numpy(audio).float().unsqueeze(0).to(device)
-                if random.choice((False, True)):
-                    keyshift = random.uniform(-12, 12)
-                    f0 = 2 ** (keyshift / 12) * f0
-                else:
-                    keyshift = 0
-                mel = self.wav2mel(audio, sample_rate=16000, keyshift=keyshift).squeeze(0)
                 self.data_buffer[name_ext] = {
                     'duration': duration,
-                    'mel': mel,
+                    'audio': audio,
                     'f0': f0,
                     'spk_id': spk_id,
                     't_spk_id': t_spk_id,
@@ -211,29 +204,29 @@ class F0Dataset(Dataset):
         f0 = data_buffer.get('f0')
 
         # load mel
-        mel = data_buffer.get('mel')
-        if mel is None:
+        audio = data_buffer.get('audio')
+        if audio is None:
             path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
             audio = np.load(path_audio)
-            
-            if random.choice((False, True)):
-                keyshift = random.uniform(-12, 12)
-                f0 = 2 ** (keyshift / 12) * f0
-            else:
-                keyshift = 0
-                
-            if self.aug_noise and bool(random.randint(0, 1)):
-                if bool(random.randint(0, 1)):
-                    audio = ut.add_noise(audio)
-                else:
-                    audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
-            peak = np.abs(audio).max()
-            audio = 0.98 * audio / peak
-            audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
-            mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0)
-            mel = mel[start_frame: start_frame + units_frame_len]
         else:
-            mel = mel[start_frame: start_frame + units_frame_len]
+            audio = audio
+            
+        if random.choice((False, True)):
+            keyshift = random.uniform(-12, 12)
+            f0 = 2 ** (keyshift / 12) * f0
+        else:
+            keyshift = 0
+                
+        if self.aug_noise and bool(random.randint(0, 1)):
+            if bool(random.randint(0, 1)):
+                audio = ut.add_noise(audio)
+            else:
+                audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
+        peak = np.abs(audio).max()
+        audio = 0.98 * audio / peak
+        audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
+        mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, train=True).squeeze(0)
+        mel = mel[start_frame: start_frame + units_frame_len]
 
         f0_frames = f0[start_frame: start_frame + units_frame_len]
 
