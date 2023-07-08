@@ -84,7 +84,8 @@ def get_data_loaders(args):
         whole_audio=True,
         extensions=args.data.extensions,
         n_spk=args.model.n_spk,
-        wav2mel=wav2mel
+        wav2mel=wav2mel,
+        aug_mask=False
     )
     loader_valid = torch.utils.data.DataLoader(
         data_valid,
@@ -111,7 +112,8 @@ class F0Dataset(Dataset):
             device='cpu',
             wav2mel=None,
             aug_noise=True,
-            aug_flip=True
+            aug_flip=True,
+            aug_mask=True
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -122,6 +124,7 @@ class F0Dataset(Dataset):
         self.duration = duration
         self.aug_noise = aug_noise
         self.aug_flip = aug_flip
+        self.aug_mask = aug_mask
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -218,16 +221,25 @@ class F0Dataset(Dataset):
             f0 = 2 ** (keyshift / 12) * f0
         else:
             keyshift = 0
-                
-        if self.aug_noise and bool(random.randint(0, 1)):
+        
+        is_aug_noise = bool(random.randint(0, 1))
+        if self.aug_noise and is_aug_noise:
             if bool(random.randint(0, 1)):
                 audio = ut.add_noise(audio)
             else:
                 audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
+                
         peak = np.abs(audio).max()
         audio = 0.98 * audio / peak
         audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
         mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, train=True).squeeze(0)
+
+        if self.aug_mask and bool(random.randint(0, 1)) and not is_aug_noise:
+            v_o = bool(random.randint(0, 1))
+            mel = mel.transpose(-1,-2)
+            mel = ut.add_mel_mask_slice(mel,self.sample_rate,self.duration,hop_size=self.hop_size,vertical_factor=0.3 if v_o else 0.05,vertical_offset=v_o,iszeropad=bool(random.randint(0, 1)),block_num=4 if v_o else 1)
+            mel = mel.transpose(-1,-2)
+            
         mel = mel[start_frame: start_frame + units_frame_len]
 
         f0_frames = f0[start_frame: start_frame + units_frame_len]
