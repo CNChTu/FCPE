@@ -131,6 +131,9 @@ class F0Dataset(Dataset):
             aug_mask_iszeropad_mode='randon',  # randon zero or noise
             aug_mask_block_num=1,
             aug_mask_block_num_v_o=4,
+            aug_keyshift=True,
+            keyshift_min=-12,
+            keyshift_max=12
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -139,16 +142,19 @@ class F0Dataset(Dataset):
         self.hop_size = hop_size
         self.path_root = path_root
         self.duration = duration
-        self.aug_noise = aug_noise if aug_noise is None else False
-        self.noise_ratio = noise_ratio if noise_ratio is None else 0.7
-        self.aug_flip = aug_flip if aug_flip is None else False
-        self.aug_mask = aug_mask if aug_mask is None else False
-        self.aug_mask_v_o = aug_mask_v_o if aug_mask_v_o is None else False
-        self.aug_mask_vertical_factor = aug_mask_vertical_factor if aug_mask_vertical_factor is None else 0.05
-        self.aug_mask_vertical_factor_v_o = aug_mask_vertical_factor_v_o if aug_mask_vertical_factor_v_o is None else 0.3
-        self.aug_mask_iszeropad_mode = aug_mask_iszeropad_mode if aug_mask_iszeropad_mode is None else 'randon'
-        self.aug_mask_block_num = aug_mask_block_num if aug_mask_block_num is None else 1
-        self.aug_mask_block_num_v_o = aug_mask_block_num_v_o if aug_mask_block_num_v_o is None else 4
+        self.aug_noise = aug_noise if aug_noise is not None else False
+        self.noise_ratio = noise_ratio if noise_ratio is not None else 0.7
+        self.aug_flip = aug_flip if aug_flip is not None else False
+        self.aug_mask = aug_mask if aug_mask is not None else False
+        self.aug_mask_v_o = aug_mask_v_o if aug_mask_v_o is not None else False
+        self.aug_mask_vertical_factor = aug_mask_vertical_factor if aug_mask_vertical_factor is not None else 0.05
+        self.aug_mask_vertical_factor_v_o = aug_mask_vertical_factor_v_o if aug_mask_vertical_factor_v_o is not None else 0.3
+        self.aug_mask_iszeropad_mode = aug_mask_iszeropad_mode if aug_mask_iszeropad_mode is not None else 'randon'
+        self.aug_mask_block_num = aug_mask_block_num if aug_mask_block_num is not None else 1
+        self.aug_mask_block_num_v_o = aug_mask_block_num_v_o if aug_mask_block_num_v_o is not None else 4
+        self.aug_keyshift = aug_keyshift if aug_keyshift is not None else True
+        self.keyshift_min = keyshift_min if keyshift_min is not None else -12
+        self.keyshift_max = keyshift_max if keyshift_max is not None else 12
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -240,8 +246,8 @@ class F0Dataset(Dataset):
         else:
             audio = audio
             
-        if random.choice((False, True)):
-            keyshift = random.uniform(-12, 12)
+        if random.choice((False, True)) and self.aug_keyshift:
+            keyshift = random.uniform(self.keyshift_min, self.keyshift_max)
             f0 = 2 ** (keyshift / 12) * f0
         else:
             keyshift = 0
