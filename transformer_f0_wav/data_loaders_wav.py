@@ -64,7 +64,17 @@ def get_data_loaders(args):
         extensions=args.data.extensions,
         n_spk=args.model.n_spk,
         device=args.train.cache_device,
-        wav2mel=wav2mel
+        wav2mel=wav2mel,
+        aug_noise=args.train.aug_noise,
+        noise_ratio=args.train.noise_ratio,
+        aug_flip=args.train.aug_flip,
+        aug_mask=args.train.aug_mask,
+        aug_mask_v_o=args.train.aug_mask_v_o,
+        aug_mask_vertical_factor=args.train.aug_mask_vertical_factor,
+        aug_mask_vertical_factor_v_o=args.train.aug_mask_vertical_factor_v_o,
+        aug_mask_iszeropad_mode=args.train.aug_mask_iszeropad_mode,
+        aug_mask_block_num=args.train.aug_mask_block_num,
+        aug_mask_block_num_v_o=args.train.aug_mask_block_num_v_o,
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -111,9 +121,19 @@ class F0Dataset(Dataset):
             n_spk=1,
             device='cpu',
             wav2mel=None,
-            aug_noise=True,
-            aug_flip=True,
-            aug_mask=True
+            aug_noise=False,
+            noise_ratio=0.7,
+            aug_flip=False,
+            aug_mask=False,
+            aug_mask_v_o=False,
+            aug_mask_vertical_factor=0.05,
+            aug_mask_vertical_factor_v_o=0.3,
+            aug_mask_iszeropad_mode='randon',  # randon zero or noise
+            aug_mask_block_num=1,
+            aug_mask_block_num_v_o=4,
+            aug_keyshift=True,
+            keyshift_min=-12,
+            keyshift_max=12
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -122,9 +142,19 @@ class F0Dataset(Dataset):
         self.hop_size = hop_size
         self.path_root = path_root
         self.duration = duration
-        self.aug_noise = aug_noise
-        self.aug_flip = aug_flip
-        self.aug_mask = aug_mask
+        self.aug_noise = aug_noise if aug_noise is not None else False
+        self.noise_ratio = noise_ratio if noise_ratio is not None else 0.7
+        self.aug_flip = aug_flip if aug_flip is not None else False
+        self.aug_mask = aug_mask if aug_mask is not None else False
+        self.aug_mask_v_o = aug_mask_v_o if aug_mask_v_o is not None else False
+        self.aug_mask_vertical_factor = aug_mask_vertical_factor if aug_mask_vertical_factor is not None else 0.05
+        self.aug_mask_vertical_factor_v_o = aug_mask_vertical_factor_v_o if aug_mask_vertical_factor_v_o is not None else 0.3
+        self.aug_mask_iszeropad_mode = aug_mask_iszeropad_mode if aug_mask_iszeropad_mode is not None else 'randon'
+        self.aug_mask_block_num = aug_mask_block_num if aug_mask_block_num is not None else 1
+        self.aug_mask_block_num_v_o = aug_mask_block_num_v_o if aug_mask_block_num_v_o is not None else 4
+        self.aug_keyshift = aug_keyshift if aug_keyshift is not None else True
+        self.keyshift_min = keyshift_min if keyshift_min is not None else -12
+        self.keyshift_max = keyshift_max if keyshift_max is not None else 12
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -216,8 +246,8 @@ class F0Dataset(Dataset):
         else:
             audio = audio
             
-        if random.choice((False, True)):
-            keyshift = random.uniform(-12, 12)
+        if random.choice((False, True)) and self.aug_keyshift:
+            keyshift = random.uniform(self.keyshift_min, self.keyshift_max)
             f0 = 2 ** (keyshift / 12) * f0
         else:
             keyshift = 0
@@ -225,9 +255,9 @@ class F0Dataset(Dataset):
         is_aug_noise = bool(random.randint(0, 1))
         if self.aug_noise and is_aug_noise:
             if bool(random.randint(0, 1)):
-                audio = ut.add_noise(audio)
+                audio = ut.add_noise(audio, noise_ratio=self.noise_ratio)
             else:
-                audio = ut.add_noise_slice(audio,self.sample_rate,self.duration)
+                audio = ut.add_noise_slice(audio,self.sample_rate,self.duration,noise_ratio=self.noise_ratio)
                 
         peak = np.abs(audio).max()
         audio = 0.98 * audio / peak
@@ -235,9 +265,15 @@ class F0Dataset(Dataset):
         mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, train=True).squeeze(0)
 
         if self.aug_mask and bool(random.randint(0, 1)) and not is_aug_noise:
-            v_o = bool(random.randint(0, 1))
+            v_o = bool(random.randint(0, 1)) and self.aug_mask_v_o
             mel = mel.transpose(-1,-2)
-            mel = ut.add_mel_mask_slice(mel,self.sample_rate,self.duration,hop_size=self.hop_size,vertical_factor=0.3 if v_o else 0.05,vertical_offset=v_o,iszeropad=bool(random.randint(0, 1)),block_num=4 if v_o else 1)
+            if self.aug_mask_iszeropad_mode == 'zero':
+                iszeropad = True
+            elif self.aug_mask_iszeropad_mode =='noise':
+                iszeropad = False
+            else:
+                iszeropad = bool(random.randint(0, 1))
+            mel = ut.add_mel_mask_slice(mel,self.sample_rate,self.duration,hop_size=self.hop_size,vertical_factor=self.aug_mask_vertical_factor_v_o if v_o else self.aug_mask_vertical_factor,vertical_offset=v_o,iszeropad=iszeropad,block_num=self.aug_mask_block_num_v_o if v_o else self.aug_mask_block_num)
             mel = mel.transpose(-1,-2)
             
         mel = mel[start_frame: start_frame + units_frame_len]
