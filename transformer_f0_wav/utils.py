@@ -5,11 +5,11 @@ from sklearn.metrics import mean_squared_error
 import torch
 
 def add_noise(wav):
-   beta = random.randint(0,2) # the exponent
+   beta = random.random()*2 # the exponent
    y = cn.powerlaw_psd_gaussian(beta, wav.shape[0])
    m =  np.sqrt(mean_squared_error(wav, np.zeros_like(y)))
    
-   if beta == 0 or beta == 1:
+   if beta >= 0 and beta <= 1.5:
       wav += (0.7*random.random())* m*y
    else:
       wav += random.random()* m*y
