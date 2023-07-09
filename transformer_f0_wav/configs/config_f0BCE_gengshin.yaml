@@ -52,6 +52,7 @@ train:
   aug_mask_iszeropad_mode: 'randon' # randon zero or noise
   aug_mask_block_num: 1
   aug_mask_block_num_v_o: 4
+  aug_eq: true
   num_workers: 8 # If your cpu and gpu are both very strong, set to 0 may be faster!
   amp_dtype: fp32 # only can ues fp32, else nan
   batch_size: 128

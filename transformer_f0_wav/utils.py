@@ -4,6 +4,11 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 import torch
 
+from transformer_f0_wav.audio_utils_1 import params2sos
+from scipy.signal import sosfilt
+
+Qmin, Qmax = 2, 5
+
 def add_noise(wav, noise_ratio=0.7):
    beta = random.random()*2 # the exponent
    y = cn.powerlaw_psd_gaussian(beta, wav.shape[0])
@@ -58,3 +63,15 @@ def add_mel_mask_slice(mel, sr, duration,hop_size=512 ,add_factor = 0.3, vertica
    if islog:
       mel = torch.log(torch.clamp(mel, min=esp))
    return mel
+
+def random_eq(wav, sr):
+    rng = np.random.default_rng()
+    z = rng.uniform(0, 1, size=(10,))
+    Q = Qmin * (Qmax / Qmin)**z
+    G = rng.uniform(-12, 12, size=(10,))
+    Fc = np.exp(np.linspace(np.log(60), np.log(7600), 10))
+    sos = params2sos(G, Fc, Q, sr)
+    wav = sosfilt(sos, wav)
+    peak = np.abs(wav).max()
+    wav = 0.98 * wav / peak
+    return wav

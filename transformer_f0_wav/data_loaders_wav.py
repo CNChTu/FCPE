@@ -75,6 +75,7 @@ def get_data_loaders(args):
         aug_mask_iszeropad_mode=args.train.aug_mask_iszeropad_mode,
         aug_mask_block_num=args.train.aug_mask_block_num,
         aug_mask_block_num_v_o=args.train.aug_mask_block_num_v_o,
+        aug_eq=args.train.aug_eq
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -133,7 +134,8 @@ class F0Dataset(Dataset):
             aug_mask_block_num_v_o=4,
             aug_keyshift=True,
             keyshift_min=-12,
-            keyshift_max=12
+            keyshift_max=12,
+            aug_eq=True
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -155,6 +157,7 @@ class F0Dataset(Dataset):
         self.aug_keyshift = aug_keyshift if aug_keyshift is not None else True
         self.keyshift_min = keyshift_min if keyshift_min is not None else -12
         self.keyshift_max = keyshift_max if keyshift_max is not None else 12
+        self.aug_eq = aug_eq if aug_eq is not None else False
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -245,7 +248,10 @@ class F0Dataset(Dataset):
             audio = np.load(path_audio)
         else:
             audio = audio
-            
+        
+        if random.choice((False, True)) and self.aug_eq:
+            audio = ut.random_eq(audio,self.sample_rate)
+
         if random.choice((False, True)) and self.aug_keyshift:
             keyshift = random.uniform(self.keyshift_min, self.keyshift_max)
             f0 = 2 ** (keyshift / 12) * f0
