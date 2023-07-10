@@ -40,7 +40,8 @@ class TransformerF0BCE(nn.Module):
             f0_max=1975.5,
             f0_min=32.70,
             confidence=False,
-            threshold = 0.05
+            threshold=0.05,
+            use_input_conv=True
     ):
         super().__init__()
         use_siren = False if (use_siren is None) else use_siren
@@ -54,7 +55,8 @@ class TransformerF0BCE(nn.Module):
         self.f0_max = f0_max if (f0_max is not None) else 1975.5
         self.f0_min = f0_min if (f0_min is not None) else 32.70
         self.confidence = confidence if (confidence is not None) else False
-        self.threshold = threshold
+        self.threshold = threshold if (threshold is not None) else 0.05
+        self.use_input_conv = use_input_conv if (use_input_conv is not None) else True
 
         self.cent_table_b = torch.Tensor(
             np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0],
@@ -122,7 +124,10 @@ class TransformerF0BCE(nn.Module):
         return:
             dict of B x n_frames x feat
         """
-        x = self.stack(mel.transpose(1, 2)).transpose(1, 2)
+        if self.use_input_conv:
+            x = self.stack(mel.transpose(1, 2)).transpose(1, 2)
+        else:
+            x = mel
         x = self.decoder(x)
         x = self.norm(x)
         x = self.dense_out(x)  # [B,N,D]
