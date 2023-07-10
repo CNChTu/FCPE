@@ -9,7 +9,7 @@ from scipy.signal import sosfilt
 
 Qmin, Qmax = 2, 5
 
-def add_noise(wav, noise_ratio=0.7):
+def add_noise(wav, noise_ratio=0.7, brown_noise_ratio=1.):
    beta = random.random()*2 # the exponent
    y = cn.powerlaw_psd_gaussian(beta, wav.shape[0])
    m =  np.sqrt(mean_squared_error(wav, np.zeros_like(y)))
@@ -17,10 +17,10 @@ def add_noise(wav, noise_ratio=0.7):
    if beta >= 0 and beta <= 1.5:
       wav += (noise_ratio*random.random())* m*y
    else:
-      wav += random.random()* m*y
+      wav += (brown_noise_ratio*random.random())* m*y
    return wav
 
-def add_noise_slice(wav, sr, duration, add_factor = 0.50, noise_ratio=0.7):
+def add_noise_slice(wav, sr, duration, add_factor = 0.50, noise_ratio=0.7, brown_noise_ratio=1.):
    slice_length = int(duration * sr)
    n_frames = int(wav.shape[-1]//slice_length)
    slice_length_noise = int(slice_length * add_factor)
@@ -28,7 +28,7 @@ def add_noise_slice(wav, sr, duration, add_factor = 0.50, noise_ratio=0.7):
       left, right = int(n * slice_length), int((n + 1) * slice_length)
       offset = random.randint(left,right-slice_length_noise)
       if wav[offset:offset+slice_length_noise].shape[0] != 0:
-         wav[offset:offset+slice_length_noise] = add_noise(wav[offset:offset+slice_length_noise], noise_ratio=noise_ratio)
+         wav[offset:offset+slice_length_noise] = add_noise(wav[offset:offset+slice_length_noise], noise_ratio=noise_ratio,  brown_noise_ratio= brown_noise_ratio)
    return wav
       
 def add_mel_mask(mel, iszeropad= False, esp = 1e-5):

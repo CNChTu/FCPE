@@ -44,6 +44,7 @@ train:
   keyshift_max: 12
   aug_noise: false
   noise_ratio: 0.7
+  brown_noise_ratio: 1.0
   aug_flip: false
   aug_mask: false
   aug_mask_v_o: false

@@ -67,6 +67,7 @@ def get_data_loaders(args):
         wav2mel=wav2mel,
         aug_noise=args.train.aug_noise,
         noise_ratio=args.train.noise_ratio,
+        brown_noise_ratio=args.train.brown_noise_ratio,
         aug_flip=args.train.aug_flip,
         aug_mask=args.train.aug_mask,
         aug_mask_v_o=args.train.aug_mask_v_o,
@@ -124,6 +125,7 @@ class F0Dataset(Dataset):
             wav2mel=None,
             aug_noise=False,
             noise_ratio=0.7,
+            brown_noise_ratio=1.,
             aug_flip=False,
             aug_mask=False,
             aug_mask_v_o=False,
@@ -146,6 +148,7 @@ class F0Dataset(Dataset):
         self.duration = duration
         self.aug_noise = aug_noise if aug_noise is not None else False
         self.noise_ratio = noise_ratio if noise_ratio is not None else 0.7
+        self.brown_noise_ratio = brown_noise_ratio if brown_noise_ratio is not None else 1.
         self.aug_flip = aug_flip if aug_flip is not None else False
         self.aug_mask = aug_mask if aug_mask is not None else False
         self.aug_mask_v_o = aug_mask_v_o if aug_mask_v_o is not None else False
@@ -173,7 +176,6 @@ class F0Dataset(Dataset):
         else:
             print('Load the f0, volume data from :', path_root)
         for name_ext in tqdm(self.paths, total=len(self.paths)):
-            name = os.path.splitext(name_ext)[0]
             path_audio = os.path.join(self.path_root, 'audio', name_ext)
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
 
@@ -263,7 +265,7 @@ class F0Dataset(Dataset):
             if bool(random.randint(0, 1)):
                 audio = ut.add_noise(audio, noise_ratio=self.noise_ratio)
             else:
-                audio = ut.add_noise_slice(audio,self.sample_rate,self.duration,noise_ratio=self.noise_ratio)
+                audio = ut.add_noise_slice(audio,self.sample_rate,self.duration,noise_ratio=self.noise_ratio, brown_noise_ratio=self.brown_noise_ratio)
                 
         peak = np.abs(audio).max()
         audio = 0.98 * audio / peak
