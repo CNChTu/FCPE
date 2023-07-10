@@ -137,7 +137,7 @@ class F0Dataset(Dataset):
             aug_keyshift=True,
             keyshift_min=-12,
             keyshift_max=12,
-            aug_eq=True
+            aug_eq=False
     ):
         super().__init__()
         self.wav2mel = wav2mel

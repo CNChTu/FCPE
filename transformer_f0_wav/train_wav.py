@@ -45,6 +45,8 @@ if __name__ == '__main__':
             f0_max=args.model.f0_max,
             f0_min=args.model.f0_min,
             confidence=args.model.confidence,
+            threshold=args.model.threshold,
+            use_input_conv=args.model.use_input_conv
         )
 
     else:
