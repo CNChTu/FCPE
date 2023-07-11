@@ -3,6 +3,9 @@ import random
 import numpy as np
 from sklearn.metrics import mean_squared_error
 import torch
+import librosa
+import pyworld
+import soundfile
 
 from transformer_f0_wav.audio_utils_1 import params2sos
 from scipy.signal import sosfilt
@@ -75,3 +78,18 @@ def random_eq(wav, sr):
     peak = np.abs(wav).max()
     wav = 0.98 * wav / peak
     return wav
+
+def worldSynthesize(wav_path,target_sr=44100,hop_length=512,fft_size=2048,f0_in = None):
+    wav,sr = librosa.load(wav_path, sr = None)
+    wav = librosa.resample(wav,orig_sr = sr,target_sr = target_sr)
+    f0, t = pyworld.dio(wav.astype(np.double),fs=target_sr, frame_period=1000 * hop_length/target_sr)
+    if f0 is not None:
+       f0 = f0_in
+    f0 = pyworld.stonemask(wav.astype(np.double), f0, t, target_sr)
+    ap = pyworld.d4c(wav.astype(np.double), f0, t, target_sr, fft_size=fft_size)
+    sp = pyworld.cheaptrick(wav.astype(np.double), f0, t, target_sr, fft_size=fft_size)
+    synthesized = pyworld.synthesize(f0, sp, ap, target_sr, frame_period=1000 * hop_length/target_sr)
+    
+    return synthesized, f0
+   #  soundfile.write(f'world_{wav_name}.wav', synthesized, target_sr)
+   #  np.save(f"f0_{wav_name}.npy",f0)

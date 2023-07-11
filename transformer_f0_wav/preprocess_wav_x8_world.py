@@ -10,7 +10,7 @@ from transformer_f0.model import Wav2Mel
 import yaml
 from transformer_f0.f0_others import F0_Extractor
 from concurrent.futures import ProcessPoolExecutor
-
+import transformer_f0_wav.utils as ut
 def parse_args(args=None, namespace=None):
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser()
@@ -31,7 +31,7 @@ def parse_args(args=None, namespace=None):
 
 
     # run  
-def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_interp,f0_extractor):
+def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worlddir,read_sr,uv_interp,f0_extractor,hop_size):
     binfile = file + '.npy'
     path_srcfile = os.path.join(path_srcdir, file)
     path_f0file = os.path.join(path_f0dir, binfile)
@@ -55,6 +55,8 @@ def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_
         if uv_interp:
             f0[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0[~uv])
 
+        audio = ut.worldSynthesize(audio,temp_sr,hop_size,f0_in = f0)
+    
         # save npy
         os.makedirs(os.path.dirname(path_f0file), exist_ok=True)
         np.save(path_f0file, f0)
@@ -66,15 +68,16 @@ def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_
         shutil.move(path_srcfile, os.path.dirname(path_skipfile))
         print('This file has been moved to ' + path_skipfile)
 
-def loop_process(filelist, path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_interp,f0_extractor):
+def loop_process(filelist, path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worlddir,read_sr,uv_interp,f0_extractor,hop_size=160):
     for file in tqdm(filelist, total=len(filelist)):
-        process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_interp,f0_extractor)
+        process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worlddir,read_sr,uv_interp,f0_extractor,hop_size)
 
-def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=16000, device='cuda', extensions=['wav'], num_workers = 4):
+def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=16000, device='cuda', extensions=['wav'], num_workers = 4,hop_size=160):
     path_srcdir = os.path.join(path, 'audio')
     path_f0dir = os.path.join(path, 'f0')
     path_npaudiodir = os.path.join(path, 'npaudiodir')
     path_skipdir = os.path.join(path, 'skip')
+    path_worlddir = os.path.join(path, 'world')
 
     # list files
     filelist = traverse_dir(
@@ -92,7 +95,7 @@ def preprocess(path, f0_extractor, wav2mel, uv_interp=False, read_sr=16000, devi
            start = int(i * len(filelist) / num_workers)
            end = int((i + 1) * len(filelist) / num_workers)
            file_chunk = filelist[start:end]
-           tasks.append(executor.submit(loop_process, file_chunk,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,read_sr,uv_interp,f0_extractor))
+           tasks.append(executor.submit(loop_process, file_chunk,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worlddir,read_sr,uv_interp,f0_extractor,hop_size))
 
        for task in tqdm(tasks):
            task.result()
@@ -185,7 +188,7 @@ if __name__ == '__main__':
     #wav2mel = Wav2Mel(args)
 
     # preprocess training set
-    preprocess(args.data.train_path, f0_extractor, None, uv_interp=args.data.us_uv, read_sr=args.mel.sampling_rate, device=device, extensions=['wav'], num_workers = num_workers)
+    preprocess(args.data.train_path, f0_extractor, None, uv_interp=args.data.us_uv, read_sr=args.mel.sampling_rate, device=device, extensions=['wav'], num_workers = num_workers,hop_size=args.mel.hop_size)
 
     # preprocess validation set
-    preprocess(args.data.valid_path, f0_extractor, None, uv_interp=args.data.us_uv, read_sr=args.mel.sampling_rate, device=device, extensions=['wav'], num_workers = num_workers)
+    preprocess(args.data.valid_path, f0_extractor, None, uv_interp=args.data.us_uv, read_sr=args.mel.sampling_rate, device=device, extensions=['wav'], num_workers = num_workers,hop_size=args.mel.hop_size)
