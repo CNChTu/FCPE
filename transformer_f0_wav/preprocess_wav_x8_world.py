@@ -6,9 +6,9 @@ import torch
 import argparse
 import shutil
 from tqdm import tqdm
-from transformer_f0.model import Wav2Mel
+#from transformer_f0.model import Wav2Mel
 import yaml
-from transformer_f0.f0_others import F0_Extractor
+from transformer_f0_wav.f0_others import F0_Extractor
 from concurrent.futures import ProcessPoolExecutor
 import transformer_f0_wav.utils as ut
 def parse_args(args=None, namespace=None):
