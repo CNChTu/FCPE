@@ -55,7 +55,7 @@ def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worldd
         if uv_interp:
             f0[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0[~uv])
 
-        audio = ut.worldSynthesize(audio,temp_sr,hop_size,f0_in = f0)
+        audio,_ = ut.worldSynthesize(audio,temp_sr,hop_size,f0_in = f0)
     
         # save npy
         os.makedirs(os.path.dirname(path_f0file), exist_ok=True)
