@@ -80,8 +80,6 @@ def random_eq(wav, sr):
     return wav
 
 def worldSynthesize(wav,target_sr=44100,hop_length=512,fft_size=2048,f0_in = None):
-    #wav,sr = librosa.load(wav_path, sr = None)
-    #wav = librosa.resample(wav,orig_sr = sr,target_sr = target_sr)
     f0, t = pyworld.dio(wav.astype(np.double),fs=target_sr, frame_period=1000 * hop_length/target_sr)
     f0 = pyworld.stonemask(wav.astype(np.double), f0, t, target_sr)
     if f0 is not None:
@@ -90,6 +88,9 @@ def worldSynthesize(wav,target_sr=44100,hop_length=512,fft_size=2048,f0_in = Non
     sp = pyworld.cheaptrick(wav.astype(np.double), f0, t, target_sr, fft_size=fft_size)
     synthesized = pyworld.synthesize(f0, sp, ap, target_sr, frame_period=1000 * hop_length/target_sr)
     
+    peak = np.abs(synthesized).max()
+    synthesized = 0.98 * synthesized / peak
+
     return synthesized, f0
    #  soundfile.write(f'world_{wav_name}.wav', synthesized, target_sr)
    #  np.save(f"f0_{wav_name}.npy",f0)
