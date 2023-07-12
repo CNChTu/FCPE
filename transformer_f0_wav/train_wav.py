@@ -62,7 +62,7 @@ if __name__ == '__main__':
         param_group['weight_decay'] = args.train.weight_decay
     scheduler = lr_scheduler.StepLR(optimizer, step_size=args.train.decay_step, gamma=args.train.gamma,
                                     last_epoch=initial_global_step - 2)
-
+    
     # device
     if args.device == 'cuda':
         torch.cuda.set_device(args.env.gpu_id)
