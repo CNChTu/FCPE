@@ -105,16 +105,17 @@ def train(args, initial_global_step, model, optimizer, scheduler, loader_train, 
 
             # handle nan loss
             if torch.isnan(loss):
-                raise ValueError(' [x] nan loss ')
+                #raise ValueError(' [x] nan loss ')
+                print(' [x] nan loss ')
+                loss = None
+                continue
             else:
                 # backpropagate
                 if dtype == torch.float32:
                     loss.backward()
-                    torch.nn.utils.clip_grad_value_(model.parameters(), 1)
                     optimizer.step()
                 else:
                     scaler.scale(loss).backward()
-                    torch.nn.utils.clip_grad_value_(model.parameters(), 1)
                     scaler.step(optimizer)
                     scaler.update()
                 scheduler.step()
