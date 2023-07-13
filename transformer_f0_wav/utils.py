@@ -76,7 +76,8 @@ def random_eq(wav, sr):
     sos = params2sos(G, Fc, Q, sr)
     wav = sosfilt(sos, wav)
     peak = np.abs(wav).max()
-    wav = 0.98 * wav / peak
+    if peak > 0.98:
+        wav = 0.98 * wav / peak
     return wav
 
 def worldSynthesize(wav,target_sr=44100,hop_length=512,fft_size=2048,f0_in = None):
