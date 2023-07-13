@@ -97,7 +97,18 @@ def get_data_loaders(args):
         extensions=args.data.extensions,
         n_spk=args.model.n_spk,
         wav2mel=wav2mel,
-        aug_mask=False
+        aug_noise=args.train.aug_noise,
+        noise_ratio=args.train.noise_ratio,
+        brown_noise_ratio=args.train.brown_noise_ratio,
+        aug_flip=args.train.aug_flip,
+        aug_mask=args.train.aug_mask,
+        aug_mask_v_o=args.train.aug_mask_v_o,
+        aug_mask_vertical_factor=args.train.aug_mask_vertical_factor,
+        aug_mask_vertical_factor_v_o=args.train.aug_mask_vertical_factor_v_o,
+        aug_mask_iszeropad_mode=args.train.aug_mask_iszeropad_mode,
+        aug_mask_block_num=args.train.aug_mask_block_num,
+        aug_mask_block_num_v_o=args.train.aug_mask_block_num_v_o,
+        aug_eq=args.train.aug_eq
     )
     loader_valid = torch.utils.data.DataLoader(
         data_valid,
