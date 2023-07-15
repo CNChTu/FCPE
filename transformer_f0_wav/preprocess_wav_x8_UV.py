@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import random
+import multiprocessing
 import librosa
 import torch
 import argparse
@@ -57,9 +58,9 @@ def process(file,path_srcdir,path_f0dir,path_npaudiodir,path_skipdir,path_worldd
         # interpolate the unvoiced f0
         f0[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0[~uv])
 
-        f0 = ((uv_h != 0).float())*f0
+        f0 = ((uv_h != 0).astype(np.float))*f0
 
-        audio,_ = ut.worldSynthesize(audio,temp_sr,hop_size,f0_in = f0)
+        #audio,_ = ut.worldSynthesize(audio,temp_sr,hop_size,f0_in = f0)
     
         # save npy
         os.makedirs(os.path.dirname(path_f0file), exist_ok=True)
@@ -175,11 +176,11 @@ if __name__ == '__main__':
 
     extensions = args.data.extensions
 
-    num_workers = 6
+    num_workers = 24
 
     # initialize f0 extractor
     f0_extractor = F0_Extractor(
-        f0_extractor="crepe",
+        f0_extractor="rmvpe",
         sample_rate=args.mel.sampling_rate,
         hop_size=args.mel.hop_size,
         f0_min=args.data.f0_min,
@@ -200,7 +201,7 @@ if __name__ == '__main__':
 
     # initialize mel extractor
     #wav2mel = Wav2Mel(args)
-
+    multiprocessing.set_start_method("spawn", force=True)
     # preprocess training set
     preprocess(args.data.train_path, f0_extractor,uv_extractor, None, uv_interp=args.data.us_uv, read_sr=args.mel.sampling_rate, device=device, extensions=['wav'], num_workers = num_workers,hop_size=args.mel.hop_size)
 
