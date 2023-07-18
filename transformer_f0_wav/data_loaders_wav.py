@@ -148,7 +148,7 @@ class F0Dataset(Dataset):
             aug_keyshift=True,
             keyshift_min=-12,
             keyshift_max=12,
-            aug_eq=False
+            aug_eq=True
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -171,7 +171,7 @@ class F0Dataset(Dataset):
         self.aug_keyshift = aug_keyshift if aug_keyshift is not None else True
         self.keyshift_min = keyshift_min if keyshift_min is not None else -12
         self.keyshift_max = keyshift_max if keyshift_max is not None else 12
-        self.aug_eq = aug_eq if aug_eq is not None else False
+        self.aug_eq = aug_eq if aug_eq is not None else True
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -263,7 +263,14 @@ class F0Dataset(Dataset):
             audio = audio
         
         if random.choice((False, True)) and self.aug_eq:
-            audio = ut.random_eq(audio,self.sample_rate)
+            audio = ut.random_eq(audio, self.sample_rate)
+            audio = ut.random_eq(audio, self.sample_rate)
+
+        if random.choice((False, True)) and self.aug_eq:
+            audio = ut.random_eq(audio, self.sample_rate)
+
+        if random.choice((False, True)) and self.aug_eq:
+            audio = ut.random_eq(audio, self.sample_rate)
 
         if random.choice((False, True)) and self.aug_keyshift:
             keyshift = random.uniform(self.keyshift_min, self.keyshift_max)
