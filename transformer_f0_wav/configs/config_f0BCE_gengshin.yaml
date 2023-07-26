@@ -49,6 +49,7 @@ train:
   brown_noise_ratio: 1.0
   aug_flip: false
   aug_mask: false
+  aug_reverb: true
   aug_mask_v_o: false
   aug_mask_vertical_factor: 0.05
   aug_mask_vertical_factor_v_o: 0.3
