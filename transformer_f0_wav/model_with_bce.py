@@ -41,7 +41,9 @@ class TransformerF0BCE(nn.Module):
             f0_min=32.70,
             confidence=False,
             threshold=0.05,
-            use_input_conv=True
+            use_input_conv=True,
+            residual_dropout=0.1,
+            attention_dropout=0.1
     ):
         super().__init__()
         use_siren = False if (use_siren is None) else use_siren
@@ -57,6 +59,9 @@ class TransformerF0BCE(nn.Module):
         self.confidence = confidence if (confidence is not None) else False
         self.threshold = threshold if (threshold is not None) else 0.05
         self.use_input_conv = use_input_conv if (use_input_conv is not None) else True
+
+        self.residual_dropout = residual_dropout if (residual_dropout is not None) else 0.1
+        self.attention_dropout = attention_dropout if (attention_dropout is not None) else 0.1
 
         self.cent_table_b = torch.Tensor(
             np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0],
@@ -80,8 +85,8 @@ class TransformerF0BCE(nn.Module):
                     dim_model=n_chans,
                     dim_keys=n_chans,
                     dim_values=n_chans,
-                    residual_dropout=0.1,
-                    attention_dropout=0.1)
+                    residual_dropout=self.residual_dropout,
+                    attention_dropout=self.attention_dropout)
             else:
                 self.decoder = PCmerS(
                     num_layers=n_layers,
@@ -89,8 +94,8 @@ class TransformerF0BCE(nn.Module):
                     dim_model=n_chans,
                     dim_keys=n_chans,
                     dim_values=n_chans,
-                    residual_dropout=0.1,
-                    attention_dropout=0.1)
+                    residual_dropout=self.residual_dropout,
+                    attention_dropout=self.attention_dropout)
         else:
             if use_full:
                 self.decoder = PCmerF(
@@ -99,8 +104,8 @@ class TransformerF0BCE(nn.Module):
                     dim_model=n_chans,
                     dim_keys=n_chans,
                     dim_values=n_chans,
-                    residual_dropout=0.1,
-                    attention_dropout=0.1)
+                    residual_dropout=self.residual_dropout,
+                    attention_dropout=self.attention_dropout)
             else:
                 self.decoder = PCmer(
                     num_layers=n_layers,
@@ -108,8 +113,8 @@ class TransformerF0BCE(nn.Module):
                     dim_model=n_chans,
                     dim_keys=n_chans,
                     dim_values=n_chans,
-                    residual_dropout=0.1,
-                    attention_dropout=0.1)
+                    residual_dropout=self.residual_dropout,
+                    attention_dropout=self.attention_dropout)
         self.norm = nn.LayerNorm(n_chans)
 
         # out

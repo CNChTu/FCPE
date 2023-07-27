@@ -23,11 +23,21 @@ def normalize_audio(audio):
     return (audio / peak)*0.6
 
 # 得到目录下的所有文件路径
-def get_file_list(dir = "D:\sim_rir_16k\simulated_rirs_16k\largeroom"):
+def get_file_list(dir = "./simulated_rirs_16k/largeroom"):
     file_list = []
+    '''
     for root, dirs, files in os.walk(dir):
         for file in files:
             file_list.append(os.path.join(root, file))
+    '''
+    for room in os.listdir(dir):
+        if room == 'rir_list':
+            continue
+        if room == 'room_info':
+            continue
+        _dir = dir + '/' + room
+        for file in os.listdir(_dir):
+            file_list.append(_dir+'/'+file)
     return file_list
 
 rir_list = get_file_list()
