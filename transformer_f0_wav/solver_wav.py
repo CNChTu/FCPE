@@ -9,12 +9,15 @@ from torch.cuda.amp import GradScaler
 from mir_eval.melody import raw_pitch_accuracy, to_cent_voicing, raw_chroma_accuracy, overall_accuracy
 from mir_eval.melody import voicing_recall, voicing_false_alarm
 
+
+USE_MIR = True
+
 def test(args, model, loader_test, saver):
     print(' [*] testing...')
     model.eval()
 
     # losses
-    test_loss = 0.
+    _rpa = _rca = _oa = _vfa = _vr = test_loss = 0.
 
     # intialization
     num_batches = len(loader_test)
@@ -38,30 +41,42 @@ def test(args, model, loader_test, saver):
             f0 = model(mel=data['mel'], infer=True)
             ed_time = time.time()
 
-            freq_pred = np.array([10 * (2 ** (cent_pred / 1200)) if cent_pred else 0 for cent_pred in f0])
-            freq = np.array([10 * (2 ** (cent / 1200)) if cent else 0 for cent in data['f0']])
+            if USE_MIR:
+                _f0 = f0.squeeze().cpu().numpy()
+                _df0 = data['f0'].squeeze().cpu().numpy()
 
-            time_slice = np.array([i*args.mel.hop_size/1000 for i in range(len(data['f0']))])
-            ref_v, ref_c, est_v, est_c = to_cent_voicing(time_slice, freq, time_slice, freq_pred)
+                freq_pred = np.array([10 * (2 ** (cent_pred / 1200)) if cent_pred else 0 for cent_pred in _f0])
+                freq = np.array([10 * (2 ** (cent / 1200)) if cent else 0 for cent in _df0])
 
-            rpa = raw_pitch_accuracy(ref_v, ref_c, est_v, est_c)
-            rca = raw_chroma_accuracy(ref_v, ref_c, est_v, est_c)
-            oa = overall_accuracy(ref_v, ref_c, est_v, est_c)
-            vfa = voicing_false_alarm(ref_v, est_v)
-            vr = voicing_recall(ref_v, est_v)
+                time_slice = np.array([i * args.mel.hop_size / 1000 for i in range(len(_df0))])
+                ref_v, ref_c, est_v, est_c = to_cent_voicing(time_slice, freq, time_slice, freq_pred)
+
+                rpa = raw_pitch_accuracy(ref_v, ref_c, est_v, est_c)
+                rca = raw_chroma_accuracy(ref_v, ref_c, est_v, est_c)
+                oa = overall_accuracy(ref_v, ref_c, est_v, est_c)
+                vfa = voicing_false_alarm(ref_v, est_v)
+                vr = voicing_recall(ref_v, est_v)
 
             # RTF
             run_time = ed_time - st_time
             song_time = f0.shape[1] * args.mel.hop_size / args.mel.sampling_rate
             rtf = run_time / song_time
             print('RTF: {}  | {} / {}'.format(rtf, run_time, song_time))
-            print('RPA: {}  | RCA: {} | OA: {} | VFA: {} | VR: {} |'.format(rpa,rca,oa,vfa,vr))
+            if USE_MIR:
+                print('RPA: {}  | RCA: {} | OA: {} | VFA: {} | VR: {} |'.format(rpa, rca, oa, vfa, vr))
             rtf_all.append(rtf)
 
             # loss
             for i in range(args.train.batch_size):
                 loss = model(mel=data['mel'], infer=False, gt_f0=data['f0'])
                 test_loss += loss.item()
+
+            if USE_MIR:
+                _rpa = _rpa + rpa
+                _rca = _rca + rca
+                _oa = _oa + oa
+                _vfa = _vfa + vfa
+                _vr = _vr + vr
 
             # log mel
             saver.log_spec(data['name'][0], data['mel'], data['mel'])
@@ -73,10 +88,26 @@ def test(args, model, loader_test, saver):
     test_loss /= args.train.batch_size
     test_loss /= num_batches
 
+    if USE_MIR:
+        _rpa /= args.train.batch_size
+        _rpa /= num_batches
+
+        _rca /= args.train.batch_size
+        _rca /= num_batches
+
+        _oa /= args.train.batch_size
+        _oa /= num_batches
+
+        _vfa /= args.train.batch_size
+        _vfa /= num_batches
+
+        _vr /= args.train.batch_size
+        _vr /= num_batches
+
     # check
     print(' [test_loss] test_loss:', test_loss)
     print(' Real Time Factor', np.mean(rtf_all))
-    return test_loss
+    return test_loss, _rpa, _rca, _oa, _vfa, _vr
 
 
 def train(args, initial_global_step, model, optimizer, scheduler, loader_train, loader_test):
@@ -120,7 +151,7 @@ def train(args, initial_global_step, model, optimizer, scheduler, loader_train, 
 
             # handle nan loss
             if torch.isnan(loss):
-                #raise ValueError(' [x] nan loss ')
+                # raise ValueError(' [x] nan loss ')
                 print(' [x] nan loss ')
                 loss = None
                 continue
@@ -171,7 +202,7 @@ def train(args, initial_global_step, model, optimizer, scheduler, loader_train, 
                     saver.delete_model(postfix=f'{last_val_step}')
 
                 # run testing set
-                test_loss = test(args, model, loader_test, saver)
+                test_loss, rpa, rca, oa, vfa, vr = test(args, model, loader_test, saver)
 
                 # log loss
                 saver.log_info(
@@ -183,5 +214,21 @@ def train(args, initial_global_step, model, optimizer, scheduler, loader_train, 
                 saver.log_value({
                     'validation/loss': test_loss
                 })
+                if USE_MIR:
+                    saver.log_value({
+                        'validation/rpa': rpa
+                    })
+                    saver.log_value({
+                        'validation/rca': rca
+                    })
+                    saver.log_value({
+                        'validation/oa': oa
+                    })
+                    saver.log_value({
+                        'validation/vfa': vfa
+                    })
+                    saver.log_value({
+                        'validation/vr': vr
+                    })
 
                 model.train()
