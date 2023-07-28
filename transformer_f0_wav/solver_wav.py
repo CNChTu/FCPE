@@ -45,9 +45,10 @@ def test(args, model, loader_test, saver):
                 _f0 = f0.squeeze().cpu().numpy()
                 _df0 = data['f0'].squeeze().cpu().numpy()
 
-                freq_pred = np.array([10 * (2 ** (cent_pred / 1200)) if cent_pred else 0 for cent_pred in _f0])
-                freq = np.array([10 * (2 ** (cent / 1200)) if cent else 0 for cent in _df0])
-
+                # freq_pred = np.array([10 * (2 ** (cent_pred / 1200)) if cent_pred else 0 for cent_pred in _f0])
+                # freq = np.array([10 * (2 ** (cent / 1200)) if cent else 0 for cent in _df0])
+                freq_pred = _f0
+                freq = _df0
                 time_slice = np.array([i * args.mel.hop_size / 1000 for i in range(len(_df0))])
                 ref_v, ref_c, est_v, est_c = to_cent_voicing(time_slice, freq, time_slice, freq_pred)
 
