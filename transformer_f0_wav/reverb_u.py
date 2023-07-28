@@ -47,4 +47,5 @@ def 加点混响(audio, rir_dir_list = rir_list):
     rir = normalize_audio(rir)
     reverb_speech = add_pyreverb(audio, rir)
     reverb_speech = normalize_audio(reverb_speech)
+    del rir
     return reverb_speech
