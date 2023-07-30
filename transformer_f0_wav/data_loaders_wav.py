@@ -347,7 +347,7 @@ class F0Dataset(Dataset):
 
         # load spk_id
         spk_id = data_buffer.get('spk_id')
-        spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
+        spk_id = torch.LongTensor(spk_id).to(self.device)
 
         if random.choice((False, False, True)) and self.aug_flip:
             f0_frames = torch.flip(f0_frames, dims=[0])
