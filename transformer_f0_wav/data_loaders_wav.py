@@ -219,6 +219,7 @@ class F0Dataset(Dataset):
     def load_data(self, paths):
         data_buffer = {}
         rank = mp.current_process()._identity
+        rank = rank[0] if len(rank) > 0 else 0
         for name_ext in tqdm(paths, total=len(paths), position= rank):
             path_audio = os.path.join(self.path_root, 'audio', name_ext)
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
