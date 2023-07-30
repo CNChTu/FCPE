@@ -12,6 +12,7 @@ from transformer_f0_wav.model_with_bce import Wav2Mel
 import transformer_f0_wav.utils as ut
 import transformer_f0_wav.reverb_u as ru
 from concurrent.futures import ProcessPoolExecutor
+import torch.multiprocessing as mp
 import pandas as pd
 
 def traverse_dir(
@@ -207,7 +208,7 @@ class F0Dataset(Dataset):
                 end = int((i + 1) * len(self.paths) / load_data_num_processes)
                 file_chunk = self.paths[start:end]
                 tasks.append(file_chunk)
-                data_buffer_lists = executor.map(self.load_data, tasks, i)
+                data_buffer_lists = executor.map(self.load_data, tasks)
         
         for data_buffer in data_buffer_lists:
             self.data_buffer.update(data_buffer)
@@ -215,9 +216,10 @@ class F0Dataset(Dataset):
         self.paths = np.array(self.paths, dtype = object)
         self.data_buffer = pd.DataFrame(self.data_buffer)
 
-    def load_data(self, paths, i):
+    def load_data(self, paths):
         data_buffer = {}
-        for name_ext in tqdm(paths, total=len(paths), position=i):
+        rank = mp.current_process()._identity
+        for name_ext in tqdm(paths, total=len(paths), position= rank):
             path_audio = os.path.join(self.path_root, 'audio', name_ext)
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
 
