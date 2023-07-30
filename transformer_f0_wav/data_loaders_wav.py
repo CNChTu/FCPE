@@ -224,7 +224,7 @@ class F0Dataset(Dataset):
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
 
             path_f0 = os.path.join(self.path_root, 'f0', name_ext) + '.npy'
-            f0 = np.load(path_f0)[None,:]
+            f0 = np.load(path_f0)[:, None]
             # f0 = torch.from_numpy(f0).float().unsqueeze(-1).to(self.device)
 
             if self.n_spk is not None and self.n_spk > 1:
