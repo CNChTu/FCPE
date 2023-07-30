@@ -11,6 +11,9 @@ from torch.utils.data import Dataset
 from transformer_f0_wav.model_with_bce import Wav2Mel
 import transformer_f0_wav.utils as ut
 import transformer_f0_wav.reverb_u as ru
+from concurrent.futures import ProcessPoolExecutor
+import pandas as pd
+
 def traverse_dir(
         root_dir,
         extensions,
@@ -77,7 +80,8 @@ def get_data_loaders(args):
         aug_mask_block_num=args.train.aug_mask_block_num,
         aug_mask_block_num_v_o=args.train.aug_mask_block_num_v_o,
         aug_eq=args.train.aug_eq,
-        aug_reverb=args.train.aug_reverb
+        aug_reverb=args.train.aug_reverb,
+        load_data_num_processes = args.train.num_workers
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -151,7 +155,8 @@ class F0Dataset(Dataset):
             keyshift_min=-12,
             keyshift_max=12,
             aug_eq=True,
-            aug_reverb=True
+            aug_reverb=True,
+            load_data_num_processes = 1
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -176,6 +181,10 @@ class F0Dataset(Dataset):
         self.keyshift_max = keyshift_max if keyshift_max is not None else 12
         self.aug_eq = aug_eq if aug_eq is not None else True
         self.aug_reverb = aug_reverb if aug_reverb is not None else True
+        self.n_spk = n_spk
+        self.device = device
+        self.load_all_data = load_all_data
+
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
             extensions=extensions,
@@ -190,26 +199,44 @@ class F0Dataset(Dataset):
             print('Load all the data from :', path_root)
         else:
             print('Load the f0, volume data from :', path_root)
-        for name_ext in tqdm(self.paths, total=len(self.paths)):
+
+        with ProcessPoolExecutor(max_workers=load_data_num_processes) as executor:
+            tasks = []
+            for i in range(load_data_num_processes):
+                start = int(i * len(self.paths) / load_data_num_processes)
+                end = int((i + 1) * len(self.paths) / load_data_num_processes)
+                file_chunk = self.paths[start:end]
+                tasks.append(file_chunk)
+                data_buffer_lists = executor.map(self.load_data, tasks, i)
+        
+        for data_buffer in data_buffer_lists:
+            self.data_buffer.update(data_buffer)
+
+        self.paths = np.array(self.paths, dtype = object)
+        self.data_buffer = pd.DataFrame(self.data_buffer)
+
+    def load_data(self, paths, i):
+        data_buffer = {}
+        for name_ext in tqdm(paths, total=len(paths), position=i):
             path_audio = os.path.join(self.path_root, 'audio', name_ext)
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
 
             path_f0 = os.path.join(self.path_root, 'f0', name_ext) + '.npy'
             f0 = np.load(path_f0)
-            f0 = torch.from_numpy(f0).float().unsqueeze(-1).to(device)
+            f0 = torch.from_numpy(f0).float().unsqueeze(-1).to(self.device)
 
-            if n_spk is not None and n_spk > 1:
+            if self.n_spk is not None and self.n_spk > 1:
                 dirname_split = re.split(r"_|\-", os.path.dirname(name_ext), 2)[0]
                 t_spk_id = spk_id = int(dirname_split) if str.isdigit(dirname_split) else 0
-                if spk_id < 1 or spk_id > n_spk:
+                if spk_id < 1 or spk_id > self.n_spk:
                     raise ValueError(
                         ' [x] Muiti-speaker traing error : spk_id must be a positive integer from 1 to n_spk ')
             else:
                 spk_id = 1
                 t_spk_id = spk_id
-            spk_id = torch.LongTensor(np.array([spk_id])).to(device)
+            spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
 
-            if load_all_data:
+            if self.load_all_data:
                 '''
                 audio, sr = librosa.load(path_audio, sr=self.sample_rate)
                 if len(audio.shape) > 1:
@@ -219,7 +246,7 @@ class F0Dataset(Dataset):
                 path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
                 audio = np.load(path_audio)
 
-                self.data_buffer[name_ext] = {
+                data_buffer[name_ext] = {
                     'duration': duration,
                     'audio': audio,
                     'f0': f0,
@@ -227,12 +254,13 @@ class F0Dataset(Dataset):
                     't_spk_id': t_spk_id,
                 }
             else:
-                self.data_buffer[name_ext] = {
+                data_buffer[name_ext] = {
                     'duration': duration,
                     'f0': f0,
                     'spk_id': spk_id,
                     't_spk_id': t_spk_id
                 }
+        return data_buffer
 
     def __getitem__(self, file_idx):
         name_ext = self.paths[file_idx]
@@ -318,7 +346,8 @@ class F0Dataset(Dataset):
         if random.choice((False, False, True)) and self.aug_flip:
             f0_frames = torch.flip(f0_frames, dims=[0])
             mel = torch.flip(mel, dims=[0])
-
+        
+        del audio
         return dict(mel=mel, f0=f0_frames, spk_id=spk_id, name=name, name_ext=name_ext)
 
     def __len__(self):
