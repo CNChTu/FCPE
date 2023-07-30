@@ -208,10 +208,9 @@ class F0Dataset(Dataset):
                 end = int((i + 1) * len(self.paths) / load_data_num_processes)
                 file_chunk = self.paths[start:end]
                 tasks.append(file_chunk)
-            data_buffer_lists = executor.map(self.load_data, tasks)
-        
-        for data_buffer in data_buffer_lists:
-            self.data_buffer.update(data_buffer)
+            for data_buffer in executor.map(self.load_data, tasks):
+                self.data_buffer.update(data_buffer)
+
 
         self.paths = np.array(self.paths, dtype = object)
         self.data_buffer = pd.DataFrame(self.data_buffer)
