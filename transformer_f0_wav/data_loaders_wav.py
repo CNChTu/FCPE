@@ -82,7 +82,7 @@ def get_data_loaders(args):
         aug_mask_block_num_v_o=args.train.aug_mask_block_num_v_o,
         aug_eq=args.train.aug_eq,
         aug_reverb=args.train.aug_reverb,
-        load_data_num_processes = args.train.num_workers
+        load_data_num_processes = 4
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -220,13 +220,13 @@ class F0Dataset(Dataset):
         data_buffer = {}
         rank = mp.current_process()._identity
         rank = rank[0] if len(rank) > 0 else 0
-        for name_ext in tqdm(paths, total=len(paths), position= rank):
+        for name_ext in tqdm(paths):
             path_audio = os.path.join(self.path_root, 'audio', name_ext)
             duration = librosa.get_duration(filename=path_audio, sr=self.sample_rate)
 
             path_f0 = os.path.join(self.path_root, 'f0', name_ext) + '.npy'
-            f0 = np.load(path_f0)
-            f0 = torch.from_numpy(f0).float().unsqueeze(-1).to(self.device)
+            f0 = np.load(path_f0)[None,:]
+            # f0 = torch.from_numpy(f0).float().unsqueeze(-1).to(self.device)
 
             if self.n_spk is not None and self.n_spk > 1:
                 dirname_split = re.split(r"_|\-", os.path.dirname(name_ext), 2)[0]
@@ -237,7 +237,8 @@ class F0Dataset(Dataset):
             else:
                 spk_id = 1
                 t_spk_id = spk_id
-            spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
+            # spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
+            spk_id = np.array([spk_id])
 
             if self.load_all_data:
                 '''
@@ -288,6 +289,7 @@ class F0Dataset(Dataset):
 
         # load f0
         f0 = data_buffer.get('f0')
+        f0 = torch.from_numpy(f0).float().to(self.device)
 
         # load mel
         audio = data_buffer.get('audio')
@@ -346,6 +348,8 @@ class F0Dataset(Dataset):
 
         # load spk_id
         spk_id = data_buffer.get('spk_id')
+        spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
+
         if random.choice((False, False, True)) and self.aug_flip:
             f0_frames = torch.flip(f0_frames, dims=[0])
             mel = torch.flip(mel, dims=[0])
