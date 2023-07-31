@@ -249,6 +249,7 @@ class F0Dataset(Dataset):
                 path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
                 audio = np.load(path_audio)
 
+                """
                 data_buffer[name_ext] = {
                     'duration': duration,
                     'audio': audio,
@@ -256,20 +257,25 @@ class F0Dataset(Dataset):
                     'spk_id': spk_id,
                     't_spk_id': t_spk_id,
                 }
+                """
+                data_buffer[name_ext] = (duration, f0, audio)
             else:
+                """
                 data_buffer[name_ext] = {
                     'duration': duration,
                     'f0': f0,
                     'spk_id': spk_id,
                     't_spk_id': t_spk_id
                 }
+                """
+                data_buffer[name_ext] = (duration, f0)
         return data_buffer
 
     def __getitem__(self, file_idx):
         name_ext = self.paths[file_idx]
         data_buffer = self.data_buffer[name_ext]
         # check duration. if too short, then skip
-        if data_buffer['duration'] < (self.waveform_sec + 0.1):
+        if data_buffer[0] < (self.waveform_sec + 0.1):
             return self.__getitem__((file_idx + 1) % len(self.paths))
 
         # get item
@@ -278,7 +284,7 @@ class F0Dataset(Dataset):
     def get_data(self, name_ext, data_buffer):
         name = os.path.splitext(name_ext)[0]
         frame_resolution = self.hop_size / self.sample_rate
-        duration = data_buffer['duration']
+        duration = data_buffer[0]
         waveform_sec = duration if self.whole_audio else self.waveform_sec
 
         # load audio
@@ -287,16 +293,16 @@ class F0Dataset(Dataset):
         units_frame_len = int(waveform_sec / frame_resolution)
 
         # load f0
-        f0 = data_buffer.get('f0')
+        f0 = data_buffer[1]
         f0 = torch.from_numpy(f0).float().to(self.device)
 
         # load mel
-        audio = data_buffer.get('audio')
-        if audio is None:
+        #audio = data_buffer.get('audio')
+        if len(data_buffer) == 2:
             path_audio = os.path.join(self.path_root, 'npaudiodir', name_ext) + '.npy'
             audio = np.load(path_audio)
         else:
-            audio = audio
+            audio = data_buffer[2]
         
         if random.choice((False, True)) and self.aug_eq:
             audio = ut.random_eq(audio, self.sample_rate)
@@ -346,15 +352,17 @@ class F0Dataset(Dataset):
         f0_frames = f0[start_frame: start_frame + units_frame_len]
 
         # load spk_id
-        spk_id = data_buffer.get('spk_id')
-        spk_id = torch.LongTensor(spk_id).to(self.device)
+        #spk_id = data_buffer.get('spk_id')
+        #spk_id = torch.LongTensor(spk_id).to(self.device)
 
         if random.choice((False, False, True)) and self.aug_flip:
             f0_frames = torch.flip(f0_frames, dims=[0])
             mel = torch.flip(mel, dims=[0])
         
         del audio
-        return dict(mel=mel, f0=f0_frames, spk_id=spk_id, name=name, name_ext=name_ext)
+        #return dict(mel=mel, f0=f0_frames, spk_id=spk_id, name=name, name_ext=name_ext)
+        output = (mel, f0_frames, name, name_ext)
+        return output
 
     def __len__(self):
         return len(self.paths)

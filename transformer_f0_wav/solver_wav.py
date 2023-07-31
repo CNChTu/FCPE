@@ -26,24 +26,27 @@ def test(args, model, loader_test, saver):
     # run
     with torch.no_grad():
         for bidx, data in enumerate(loader_test):
-            fn = data['name'][0]
+            fn = data[2][0]
             print('--------')
             print('{}/{} - {}'.format(bidx, num_batches, fn))
 
             # unpack data
-            for k in data.keys():
-                if not k.startswith('name'):
+            #for k in data.keys():
+            #    if not k.startswith('name'):
+            #        data[k] = data[k].to(args.device)
+            for k in range(len(data)):
+                if k < 2:
                     data[k] = data[k].to(args.device)
-            print('>>', data['name'][0])
+            #print('>>', data[2][0])
 
             # forward
             st_time = time.time()
-            f0 = model(mel=data['mel'], infer=True)
+            f0 = model(mel=data[0], infer=True)
             ed_time = time.time()
 
             if USE_MIR:
-                _f0 = f0.squeeze().cpu().numpy()
-                _df0 = data['f0'].squeeze().cpu().numpy()
+                _f0 = ((f0.exp() - 1) * 700).squeeze().cpu().numpy()
+                _df0 = data[1].squeeze().cpu().numpy()
 
                 time_slice = np.array([i * args.mel.hop_size * 1000 / args.mel.sampling_rate for i in range(len(_df0))])
                 ref_v, ref_c, est_v, est_c = to_cent_voicing(time_slice, _df0, time_slice, _f0)
@@ -65,7 +68,7 @@ def test(args, model, loader_test, saver):
 
             # loss
             for i in range(args.train.batch_size):
-                loss = model(mel=data['mel'], infer=False, gt_f0=data['f0'])
+                loss = model(mel=data[0], infer=False, gt_f0=data[1])
                 test_loss += loss.item()
 
             if USE_MIR:
@@ -76,10 +79,10 @@ def test(args, model, loader_test, saver):
                 _vr = _vr + vr
 
             # log mel
-            saver.log_spec(data['name'][0], data['mel'], data['mel'])
+            saver.log_spec(data[3][0], data[0], data[0])
 
-            saver.log_f0(data['name'][0], f0, data['f0'])
-            saver.log_f0(data['name'][0], f0, data['f0'], inuv=True)
+            saver.log_f0(data[3][0], f0, data[1])
+            saver.log_f0(data[3][0], f0, data[1], inuv=True)
 
     # report
     test_loss /= args.train.batch_size
@@ -145,16 +148,17 @@ def train_one_step(batch_idx, data, saver,optimizer,model,dtype,scaler,epoch,arg
     optimizer.zero_grad()
 
     # unpack data
-    for k in data.keys():
-        if not k.startswith('name'):
+    for k in range(len(data)):
+        if k < 2:
             data[k] = data[k].to(args.device)
+    #print('>>', data[2][0])
 
     # forward
     if dtype == torch.float32:
-        loss = model(mel=data['mel'], infer=False, gt_f0=data['f0'])
+        loss = model(mel=data[0], infer=False, gt_f0=data[1])
     else:
         with autocast(device_type=args.device, dtype=dtype):
-            loss = model(mel=data['mel'], infer=False, gt_f0=data['f0'])
+            loss = model(mel=data[0], infer=False, gt_f0=data[1])
 
     # handle nan loss
     if torch.isnan(loss):
