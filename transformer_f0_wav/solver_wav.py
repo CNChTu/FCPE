@@ -18,6 +18,7 @@ def test(args, model, loader_test, saver):
 
     # losses
     _rpa = _rca = _oa = _vfa = _vr = test_loss = 0.
+    _num_a = 0
 
     # intialization
     num_batches = len(loader_test)
@@ -77,6 +78,7 @@ def test(args, model, loader_test, saver):
                 _oa = _oa + oa
                 _vfa = _vfa + vfa
                 _vr = _vr + vr
+                _num_a = _num_a + 1
 
             # log mel
             saver.log_spec(data[3][0], data[0], data[0])
@@ -89,20 +91,15 @@ def test(args, model, loader_test, saver):
     test_loss /= num_batches
 
     if USE_MIR:
-        _rpa /= args.train.batch_size
-        _rpa /= num_batches
+        _rpa /= _num_a
 
-        _rca /= args.train.batch_size
-        _rca /= num_batches
+        _rca /= _num_a
 
-        _oa /= args.train.batch_size
-        _oa /= num_batches
+        _oa /= _num_a
 
-        _vfa /= args.train.batch_size
-        _vfa /= num_batches
+        _vfa /= _num_a
 
-        _vr /= args.train.batch_size
-        _vr /= num_batches
+        _vr /= _num_a
 
     # check
     print(' [test_loss] test_loss:', test_loss)
