@@ -56,7 +56,7 @@ def traverse_dir(
 
 
 def get_data_loaders(args):
-    wav2mel = Wav2Mel(args)
+    wav2mel = Wav2Mel(args, device='cpu')
     data_train = F0Dataset(
         path_root=args.data.train_path,
         waveform_sec=args.data.duration,
@@ -234,10 +234,11 @@ class F0Dataset(Dataset):
                     raise ValueError(
                         ' [x] Muiti-speaker traing error : spk_id must be a positive integer from 1 to n_spk ')
             else:
-                spk_id = 1
-                t_spk_id = spk_id
+                pass
+                #spk_id = 1
+                #t_spk_id = spk_id
             # spk_id = torch.LongTensor(np.array([spk_id])).to(self.device)
-            spk_id = np.array([spk_id])
+            #spk_id = np.array([spk_id])
 
             if self.load_all_data:
                 '''
@@ -294,7 +295,7 @@ class F0Dataset(Dataset):
 
         # load f0
         f0 = data_buffer[1]
-        f0 = torch.from_numpy(f0).float().to(self.device)
+        f0 = torch.from_numpy(f0).float().cpu()
 
         # load mel
         #audio = data_buffer.get('audio')
@@ -332,8 +333,8 @@ class F0Dataset(Dataset):
                 
         peak = np.abs(audio).max()
         audio = 0.98 * audio / peak
-        audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
-        mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, train=True).squeeze(0)
+        audio = torch.from_numpy(audio).float().unsqueeze(0).cpu()
+        mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, train=True).squeeze(0).cpu()
 
         if self.aug_mask and bool(random.randint(0, 1)) and not is_aug_noise:
             v_o = bool(random.randint(0, 1)) and self.aug_mask_v_o
@@ -347,7 +348,7 @@ class F0Dataset(Dataset):
             mel = ut.add_mel_mask_slice(mel,self.sample_rate,self.duration,hop_size=self.hop_size,vertical_factor=self.aug_mask_vertical_factor_v_o if v_o else self.aug_mask_vertical_factor,vertical_offset=v_o,iszeropad=iszeropad,block_num=self.aug_mask_block_num_v_o if v_o else self.aug_mask_block_num)
             mel = mel.transpose(-1,-2)
             
-        mel = mel[start_frame: start_frame + units_frame_len]
+        mel = mel[start_frame: start_frame + units_frame_len].detach()
 
         f0_frames = f0[start_frame: start_frame + units_frame_len]
 

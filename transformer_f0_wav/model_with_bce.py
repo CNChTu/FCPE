@@ -240,10 +240,12 @@ class Wav2Mel:
         )
         self.resample_kernel = {}
 
+    @torch.no_grad()
     def extract_nvstft(self, audio, keyshift=0, train=False):
         mel = self.stft.get_mel(audio, keyshift=keyshift, train=train).transpose(1, 2)  # B, n_frames, bins
         return mel
 
+    @torch.no_grad()
     def extract_mel(self, audio, sample_rate, keyshift=0, train=False):
         # resample
         if sample_rate == self.sampling_rate:
@@ -264,6 +266,7 @@ class Wav2Mel:
             mel = mel[:, :n_frames, :]
         return mel
 
+    @torch.no_grad()
     def __call__(self, audio, sample_rate, keyshift=0, train=False):
         return self.extract_mel(audio, sample_rate, keyshift=keyshift, train=train)
 
