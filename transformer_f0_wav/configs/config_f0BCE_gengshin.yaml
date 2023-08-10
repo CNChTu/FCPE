@@ -30,6 +30,7 @@ model:
   n_spk: 199 # max number of speakers
   threshold: 0.05
   use_input_conv: true
+  cdecoder: 'argmax'
 loss:
   loss_mse_scale: 10
   loss_l2_regularization: false
