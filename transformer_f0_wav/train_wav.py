@@ -48,7 +48,8 @@ if __name__ == '__main__':
             threshold=args.model.threshold,
             use_input_conv=args.model.use_input_conv,
             residual_dropout=args.model.residual_dropout,
-            attention_dropout=args.model.attention_dropout
+            attention_dropout=args.model.attention_dropout,
+            cdecoder=args.model.cdecoder
         )
 
     else:

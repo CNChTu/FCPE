@@ -43,9 +43,11 @@ class TransformerF0BCE(nn.Module):
             threshold=0.05,
             use_input_conv=True,
             residual_dropout=0.1,
-            attention_dropout=0.1
+            attention_dropout=0.1,
+            cdecoder="argmax"
     ):
         super().__init__()
+        self.cdecoder = cdecoder if (cdecoder is not None) else "argmax"
         use_siren = False if (use_siren is None) else use_siren
         use_full = False if (use_full is None) else use_full
         self.loss_mse_scale = loss_mse_scale if (loss_mse_scale is not None) else 10
@@ -122,13 +124,21 @@ class TransformerF0BCE(nn.Module):
         self.dense_out = weight_norm(
             nn.Linear(n_chans, self.n_out))
 
-    def forward(self, mel, infer=True, gt_f0=None, return_hz_f0=False):
+    def forward(self, mel, infer=True, gt_f0=None, return_hz_f0=False, cdecoder=None):
         """
         input:
             B x n_frames x n_unit
         return:
             dict of B x n_frames x feat
         """
+        if cdecoder is None:
+            cdecoder = self.cdecoder
+        if cdecoder == "argmax":
+            _cdecoder = self.cents_decoder
+        elif cdecoder == "local_argmax":
+            _cdecoder = self.cents_local_decoder
+        else:
+            raise ValueError("unknown cdecoder")
         if self.use_input_conv:
             x = self.stack(mel.transpose(1, 2)).transpose(1, 2)
         else:
@@ -146,7 +156,8 @@ class TransformerF0BCE(nn.Module):
                 loss_all = loss_all + l2_regularization(model=self, l2_alpha=self.loss_l2_regularization_scale)
             x = loss_all
         if infer:
-            x = self.cents_decoder(x)
+            #x = self.cents_decoder(x)
+            x = _cdecoder(x)
             x = self.cent_to_f0(x)
             if not return_hz_f0:
                 x = (1 + x / 700).log()
@@ -158,6 +169,25 @@ class TransformerF0BCE(nn.Module):
         rtn = torch.sum(ci * y, dim=-1, keepdim=True) / torch.sum(y, dim=-1, keepdim=True)  # cents: [B,N,1]
         if mask:
             confident = torch.max(y, dim=-1 ,keepdim=True)[0]
+            confident_mask = torch.ones_like(confident)
+            confident_mask[confident <= self.threshold] = float("-INF")
+            rtn = rtn * confident_mask
+        if self.confidence:
+            return rtn, confident
+        else:
+            return rtn
+
+    def cents_local_decoder(self, y, mask=True):
+        B, N, _ = y.size()
+        ci = self.cent_table[None, None, :].expand(B, N, -1)
+        confident, max_index = torch.max(y, dim=-1, keepdim=True)
+        local_argmax_index = torch.arange(0,8).to(max_index.device) + (max_index - 4)
+        local_argmax_index[local_argmax_index<0] = 0
+        local_argmax_index[local_argmax_index>=self.n_out] = self.n_out - 1
+        ci_l = torch.gather(ci,-1,local_argmax_index)
+        y_l = torch.gather(y,-1,local_argmax_index)
+        rtn = torch.sum(ci_l * y_l, dim=-1, keepdim=True) / torch.sum(y_l, dim=-1, keepdim=True)  # cents: [B,N,1]
+        if mask:
             confident_mask = torch.ones_like(confident)
             confident_mask[confident <= self.threshold] = float("-INF")
             rtn = rtn * confident_mask
