@@ -95,3 +95,13 @@ def worldSynthesize(wav,target_sr=44100,hop_length=512,fft_size=2048,f0_in = Non
     return synthesized, f0
    #  soundfile.write(f'world_{wav_name}.wav', synthesized, target_sr)
    #  np.save(f"f0_{wav_name}.npy",f0)
+
+
+def add_noise_snb(wav, snb, beta):
+   # 将信噪比转换为信号与噪声的能量比例
+   snb = 10 ** (snb / 10)
+   noise = cn.powerlaw_psd_gaussian(beta, wav.shape[0])
+   rms_signal = np.sqrt(np.mean(wav ** 2))
+   rms_noise = np.sqrt(np.mean(noise ** 2))
+   wav = wav + noise * (rms_signal / rms_noise) / snb
+   return wav
