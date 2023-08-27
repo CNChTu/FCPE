@@ -197,7 +197,7 @@ class FCPEInfer:
         model.load_state_dict(ckpt['model'])
         model.eval()
         self.model = model
-        self.wav2mel = Wav2Mel(self.args)
+        self.wav2mel = Wav2Mel(self.args, device=self.device)
         self.args = args
 
     @torch.no_grad()
