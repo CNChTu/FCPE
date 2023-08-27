@@ -157,7 +157,9 @@ class F0Dataset(Dataset):
             keyshift_max=12,
             aug_eq=True,
             aug_reverb=True,
-            load_data_num_processes = 1
+            load_data_num_processes = 1,
+            snb_noise = None,
+            noise_beta = 0
     ):
         super().__init__()
         self.wav2mel = wav2mel
@@ -185,6 +187,8 @@ class F0Dataset(Dataset):
         self.n_spk = n_spk
         self.device = device
         self.load_all_data = load_all_data
+        self.snb_noise = snb_noise
+        self.noise_beta = noise_beta
 
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
@@ -330,6 +334,10 @@ class F0Dataset(Dataset):
                 keyshift = 0
 
             is_aug_noise = bool(random.randint(0, 1))
+
+            if self.snb_noise is not None:
+                audio = ut.add_noise_snb(audio ,self.snb_noise, self.noise_beta)
+                
             if self.aug_noise and is_aug_noise:
                 if bool(random.randint(0, 1)):
                     audio = ut.add_noise(audio, noise_ratio=self.noise_ratio)
