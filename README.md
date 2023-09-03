@@ -5,3 +5,7 @@
 [so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)Latest 版本堂堂公测！。~ [so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)已正式投入使用
 
 ![Diagram](./test.png)
+
+# 网络结构图
+
+![Diagram](./net_arc.png)
