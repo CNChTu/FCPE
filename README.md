@@ -6,6 +6,6 @@
 
 ![Diagram](./test.png)
 
-# 网络结构图
+## 网络结构图
 
 ![Diagram](./net_arc.png)
