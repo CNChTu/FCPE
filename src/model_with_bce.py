@@ -238,48 +238,6 @@ class TransformerF0BCE(nn.Module):
         return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()
 
 
-class TransformerF0Infer:
-    def __init__(self, model_path, device=None):
-        config_file = os.path.join(os.path.split(model_path)[0], "config.yaml")
-        with open(config_file, "r") as config:
-            args = yaml.safe_load(config)
-        self.args = DotDict(args)
-        model = TransformerF0BCE(
-            input_channel=self.args.model.input_channel,
-            out_dims=self.args.model.out_dims,
-            n_layers=self.args.model.n_layers,
-            n_chans=self.args.model.n_chans,
-            use_siren=self.args.model.use_siren,
-            use_full=self.args.model.use_full,
-            loss_mse_scale=self.args.loss.loss_mse_scale,
-            loss_l2_regularization=self.args.loss.loss_l2_regularization,
-            loss_l2_regularization_scale=self.args.loss.loss_l2_regularization_scale,
-            loss_grad1_mse=self.args.loss.loss_grad1_mse,
-            loss_grad1_mse_scale=self.args.loss.loss_grad1_mse_scale,
-            f0_max=self.args.model.f0_max,
-            f0_min=self.args.model.f0_min,
-            confidence=self.args.model.confidence,
-        )
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = device
-        ckpt = torch.load(model_path, map_location=torch.device(self.device))
-        model.to(device)
-        model.load_state_dict(ckpt["model"])
-        model.eval()
-        self.model = model
-        self.wav2mel = Wav2Mel(self.args)
-
-    @torch.no_grad()
-    def __call__(self, audio, sr):
-        audio = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
-        mel = self.wav2mel(audio=audio, sample_rate=sr)
-        mel_f0 = self.model(mel=mel, infer=True, return_hz_f0=True)
-        # f0 = (mel_f0.exp() - 1) * 700
-        f0 = mel_f0
-        return f0
-
-
 class Wav2Mel:
     def __init__(self, args, device=None):
         # self.args = args
