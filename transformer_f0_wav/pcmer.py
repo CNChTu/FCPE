@@ -306,6 +306,8 @@ class FastAttention(nn.Module):
             k = create_kernel(k, is_query = False)
 
         attn_fn = linear_attention if not self.causal else self.causal_linear_fn
+        q = q / q.norm(dim=-1, keepdim=True)
+        k = k / k.norm(dim=-1, keepdim=True)
         if v is None:
             out = attn_fn(q, k, None)
             return out

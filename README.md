@@ -9,3 +9,7 @@
 ## 网络结构图
 
 ![Diagram](./net_arc.png)
+
+## 训练方案
+
+![Diagram](train_method.png)
