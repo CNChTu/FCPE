@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
-import numpy as np
+#import numpy as np
 
 from .model_conformer_naive import ConformerNaiveEncoder
 
@@ -69,10 +69,19 @@ class CFNaiveMelPE(nn.Module):
             nn.Linear(hidden_dims, out_dims)
         )
         # Cent table buffer
+        """
         self.cent_table_b = torch.Tensor(
             np.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0], self.f0_to_cent(torch.Tensor([f0_max]))[0],
                         out_dims))
+        """
+        # use torch have very small difference like 1e-4, up to 1e-3, but it may be better to use numpy?
+        self.cent_table_b = torch.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0],
+                                           self.f0_to_cent(torch.Tensor([f0_max]))[0],
+                                           out_dims)
         self.register_buffer("cent_table", self.cent_table_b)
+        # gaussian_blurred_cent_mask_b buffer
+        self.gaussian_blurred_cent_mask_b = (1200. * torch.log2(torch.Tensor([self.f0_max / 10.])))[0].detach()
+        self.register_buffer("gaussian_blurred_cent_mask_b", self.gaussian_blurred_cent_mask_b)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -148,11 +157,11 @@ class CFNaiveMelPE(nn.Module):
         return:
             torch.Tensor: Latent, shape (B, T, out_dims).
         """
-        mask = (cents > 0.1) & (cents < (1200. * np.log2(self.f0_max / 10.)))
+        # mask = (cents > 0.1) & (cents < (1200. * np.log2(self.f0_max / 10.)))
+        mask = (cents > 0.1) & (cents < self.gaussian_blurred_cent_mask_b)
         B, N, _ = cents.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
-        letent = torch.exp(-torch.square(ci - cents) / 1250) * mask.float()
-        return letent  # (B, T, out_dims)
+        return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()  # (B, T, out_dims)
 
     @torch.no_grad()
     def infer(self,
