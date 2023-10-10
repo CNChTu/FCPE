@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
-#import numpy as np
+import numpy as np
 
 from .model_conformer_naive import ConformerNaiveEncoder
 
@@ -77,11 +77,11 @@ class CFNaiveMelPE(nn.Module):
         # use torch have very small difference like 1e-4, up to 1e-3, but it may be better to use numpy?
         self.cent_table_b = torch.linspace(self.f0_to_cent(torch.Tensor([f0_min]))[0],
                                            self.f0_to_cent(torch.Tensor([f0_max]))[0],
-                                           out_dims)
+                                           out_dims).detach()
         self.register_buffer("cent_table", self.cent_table_b)
         # gaussian_blurred_cent_mask_b buffer
         self.gaussian_blurred_cent_mask_b = (1200. * torch.log2(torch.Tensor([self.f0_max / 10.])))[0].detach()
-        self.register_buffer("gaussian_blurred_cent_mask_b", self.gaussian_blurred_cent_mask_b)
+        self.register_buffer("gaussian_blurred_cent_mask", self.gaussian_blurred_cent_mask_b)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -94,8 +94,10 @@ class CFNaiveMelPE(nn.Module):
         x = self.net(x)
         x = self.norm(x)
         x = self.output_proj(x)
+        x = torch.sigmoid(x)
         return x  # latent (B, T, out_dims)
 
+    @torch.no_grad()
     def latent2cents_decoder(self,
                              y: torch.Tensor,
                              threshold: float = 0.05,
@@ -120,6 +122,7 @@ class CFNaiveMelPE(nn.Module):
             rtn = rtn * confident_mask
         return rtn  # (B, T, 1)
 
+    @torch.no_grad()
     def latent2cents_local_decoder(self,
                                    y: torch.Tensor,
                                    threshold: float = 0.05,
@@ -149,6 +152,7 @@ class CFNaiveMelPE(nn.Module):
             rtn = rtn * confident_mask
         return rtn  # (B, T, 1)
 
+    @torch.no_grad()
     def gaussian_blurred_cent2latent(self, cents):  # cents: [B,N,1]
         """
         Convert cents to latent.
@@ -157,11 +161,11 @@ class CFNaiveMelPE(nn.Module):
         return:
             torch.Tensor: Latent, shape (B, T, out_dims).
         """
-        # mask = (cents > 0.1) & (cents < (1200. * np.log2(self.f0_max / 10.)))
-        mask = (cents > 0.1) & (cents < self.gaussian_blurred_cent_mask_b)
+        mask = (cents > 0.1) & (cents < self.gaussian_blurred_cent_mask)
+        #mask = (cents>0.1) & (cents<(1200.*np.log2(self.f0_max/10.)))
         B, N, _ = cents.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
-        return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()  # (B, T, out_dims)
+        return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()
 
     @torch.no_grad()
     def infer(self,
@@ -182,10 +186,10 @@ class CFNaiveMelPE(nn.Module):
             cents = self.latent2cents_local_decoder(latent, threshold=threshold)
         else:
             raise ValueError(f"  [x] Unknown decoder type {decoder}.")
-        f0 = cent_to_f0(cents)
+        f0 = self.cent_to_f0(cents)
         return f0  # (B, T, 1)
 
-    def train_loss(self, mel, gt_f0, loss_scale=10):
+    def train_and_loss(self, mel, gt_f0, loss_scale=10):
         """
         Args:
             mel (torch.Tensor): Input mel-spectrogram, shape (B, T, input_channels) or (B, T, mel_bins).
@@ -193,24 +197,24 @@ class CFNaiveMelPE(nn.Module):
             loss_scale (float): Loss scale. Default: 10.
         return: loss
         """
-        gt_cent_f0 = f0_to_cent(gt_f0)  # mel f0, [B,N,1]
-        x_gt = self.gaussian_blurred_cent(gt_cent_f0)  # [B,N,out_dim]
+        gt_cent_f0 = self.f0_to_cent(gt_f0)  # mel f0, [B,N,1]
+        x_gt = self.gaussian_blurred_cent2latent(gt_cent_f0)  # [B,N,out_dim]
         x = self.forward(mel)  # [B,N,out_dim]
         loss = F.binary_cross_entropy(x, x_gt) * loss_scale
         return loss
 
+    @torch.no_grad()
+    def cent_to_f0(self, cent: torch.Tensor) -> torch.Tensor:
+        """
+        Convert cent to f0. Args: cent (torch.Tensor): Cent, shape = (B, T, 1). return: torch.Tensor: f0, shape = (B, T, 1).
+        """
+        f0 = 10. * 2 ** (cent / 1200.)
+        return f0  # (B, T, 1)
 
-def cent_to_f0(cent: torch.Tensor) -> torch.Tensor:
-    """
-    Convert cent to f0. Args: cent (torch.Tensor): Cent, shape = (B, T, 1). return: torch.Tensor: f0, shape = (B, T, 1).
-    """
-    f0 = 10. * 2 ** (cent / 1200.)
-    return f0  # (B, T, 1)
-
-
-def f0_to_cent(f0: torch.Tensor) -> torch.Tensor:
-    """
-    Convert f0 to cent. Args: f0 (torch.Tensor): f0, shape = (B, T, 1). return: torch.Tensor: Cent, shape = (B, T, 1).
-    """
-    cent = 1200. * torch.log2(f0 / 10.)
-    return cent  # (B, T, 1)
+    @torch.no_grad()
+    def f0_to_cent(self, f0: torch.Tensor) -> torch.Tensor:
+        """
+        Convert f0 to cent. Args: f0 (torch.Tensor): f0, shape = (B, T, 1). return: torch.Tensor: Cent, shape = (B, T, 1).
+        """
+        cent = 1200. * torch.log2(f0 / 10.)
+        return cent  # (B, T, 1)

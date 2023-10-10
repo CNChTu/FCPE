@@ -191,6 +191,7 @@ class Wav2Mel:
         """Get device"""
         return self.device
 
+    @torch.no_grad()
     def __call__(self,
                  audio: torch.Tensor,  # (B, T, 1)
                  sample_rate: [int, float],
