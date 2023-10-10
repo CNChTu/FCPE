@@ -50,7 +50,7 @@ def test(args, model, loader_test, saver):
                 _f0 = ((f0.exp() - 1) * 700).squeeze().cpu().numpy()
                 _df0 = data[1].squeeze().cpu().numpy()
 
-                time_slice = np.array([i * args.mel.hop_size * 1000 / args.mel.sampling_rate for i in range(len(_df0))])
+                time_slice = np.array([i * args.mel.hop_size * 1000 / args.mel.sr for i in range(len(_df0))])
                 ref_v, ref_c, est_v, est_c = to_cent_voicing(time_slice, _df0, time_slice, _f0)
 
                 rpa = raw_pitch_accuracy(ref_v, ref_c, est_v, est_c)
@@ -61,7 +61,7 @@ def test(args, model, loader_test, saver):
 
             # RTF
             run_time = ed_time - st_time
-            song_time = f0.shape[1] * args.mel.hop_size / args.mel.sampling_rate
+            song_time = f0.shape[1] * args.mel.hop_size / args.mel.sr
             rtf = run_time / song_time
             print('RTF: {}  | {} / {}'.format(rtf, run_time, song_time))
             if USE_MIR:
