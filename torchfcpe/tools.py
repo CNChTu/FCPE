@@ -23,6 +23,55 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
+class InferCFNaiveMelPE:
+    """Infer CFNaiveMelPE
+    Args:
+        args (DotDict): Config.
+        state_dict (dict): Model state dict.
+        device (str): Device. must be not None.
+    """
+
+    def __init__(self, args, state_dict, device):
+        self.device = device
+        self.wav2mel = spawn_wav2mel(args, device=self.device)
+        self.model = spawn_model(args)
+        self.model.load_state_dict(state_dict)
+        self.model.eval()
+
+    def __call__(self,
+                 mel: torch.Tensor,
+                 sr: [int, float],
+                 decoder_mode: str = 'local_argmax',
+                 threshold: float = 0.05
+                 ) -> torch.Tensor:
+        """Infer
+        Args:
+            mel (torch.Tensor): Input mel-spectrogram, shape (B, T, input_channels) or (B, T, mel_bins).
+            sr (int, float): Sample rate.
+            decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
+            threshold (float): Threshold to mask. Default: 0.05.
+        return: f0 (torch.Tensor): f0 Hz, shape (B, T, 1).
+        """
+        with torch.no_grad():
+            mel = self.wav2mel(mel, sr)
+            f0 = self.model.infer(mel, decoder=decoder_mode, threshold=threshold)
+        return f0  # (B, T, 1)
+
+
+def spawn_infer_cf_naive_mel_pe_from_pt(pt_path: str, device: str = None) -> InferCFNaiveMelPE:
+    """
+    Spawn infer CFNaiveMelPE from pt file
+    Args:
+        pt_path (str): Path to pt file.
+        device (str): Device. Default: None.
+    """
+    device = get_device(device, 'torchfcpe.tools.spawn_infer_cf_naive_mel_pe_from_pt')
+    ckpt = torch.load(pt_path, map_location=torch.device(device))
+    args = DotDict(ckpt['config_dict'])
+    infer_model = InferCFNaiveMelPE(args, ckpt['model'], device)
+    return infer_model
+
+
 def spawn_model(args: DotDict) -> CFNaiveMelPE:
     """Spawn conformer naive model"""
     if args.model.type == 'CFNaiveMelPE':
