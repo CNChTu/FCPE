@@ -47,7 +47,7 @@ def test(args, model, loader_test, saver):
             ed_time = time.time()
 
             if USE_MIR:
-                _f0 = ((f0.exp() - 1) * 700).squeeze().cpu().numpy()
+                _f0 = f0.squeeze().cpu().numpy()
                 _df0 = data[1].squeeze().cpu().numpy()
 
                 time_slice = np.array([i * args.mel.hop_size * 1000 / args.mel.sr for i in range(len(_df0))])
