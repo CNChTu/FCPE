@@ -45,11 +45,11 @@ train:
   aug_mask_iszeropad_mode: 'noise' # randon zero or noise
   aug_mask_block_num: 1
   aug_mask_block_num_v_o: 1
-  num_workers: 12 # If your cpu and gpu are both very strong, set to 0 may be faster!
+  num_workers: 16 # If your cpu and gpu are both very strong, set to 0 may be faster!
   amp_dtype: fp32 # only can ues fp32, else nan
   batch_size: 128
-  cache_all_data: true # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
-  cache_device: 'cuda' # Set to 'cuda' to cache the data into the Graphics-Memory, fastest speed for strong gpu
+  cache_all_data: false # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
+  cache_device: 'cpu' # Set to 'cuda' to cache the data into the Graphics-Memory, fastest speed for strong gpu
   epochs: 100000
   interval_log: 100
   interval_val: 5000
@@ -57,5 +57,5 @@ train:
   lr: 0.0005
   decay_step: 100000
   gamma: 0.5
-  weight_decay: 0
+  weight_decay: 0.0001
   save_opt: false
