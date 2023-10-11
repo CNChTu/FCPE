@@ -95,7 +95,7 @@ class Saver(object):
             self.writer.add_audio(k, v, global_step=self.global_step, sample_rate=self.sample_rate)
 
     def log_f0(self, name, f0_pr, f0_gt, inuv=False):
-        f0_gt = (1 + f0_gt / 700).log()
+        #f0_gt = (1 + f0_gt / 700).log()
         name = (name + '_f0_inuv') if inuv else (name + '_f0')
         f0_pr = f0_pr.squeeze().cpu().numpy()
         f0_gt = f0_gt.squeeze().cpu().numpy()
