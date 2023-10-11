@@ -36,6 +36,7 @@ class InferCFNaiveMelPE:
         self.wav2mel = spawn_wav2mel(args, device=self.device)
         self.model = spawn_model(args)
         self.model.load_state_dict(state_dict)
+        self.model.to(device)
         self.model.eval()
 
     def __call__(self,
