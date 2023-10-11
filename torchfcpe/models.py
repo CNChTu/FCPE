@@ -197,6 +197,10 @@ class CFNaiveMelPE(nn.Module):
             loss_scale (float): Loss scale. Default: 10.
         return: loss
         """
+        if mel.shape[-2] != gt_f0.shape[-2]:
+            _len = min(mel.shape[-2], gt_f0.shape[-2])
+            mel = mel[:, :_len, :]
+            gt_f0 = gt_f0[:, :_len, :]
         gt_cent_f0 = self.f0_to_cent(gt_f0)  # mel f0, [B,N,1]
         x_gt = self.gaussian_blurred_cent2latent(gt_cent_f0)  # [B,N,out_dim]
         x = self.forward(mel)  # [B,N,out_dim]
