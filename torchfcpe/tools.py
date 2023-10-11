@@ -39,21 +39,21 @@ class InferCFNaiveMelPE:
         self.model.eval()
 
     def __call__(self,
-                 mel: torch.Tensor,
+                 wav: torch.Tensor,
                  sr: [int, float],
                  decoder_mode: str = 'local_argmax',
                  threshold: float = 0.05
                  ) -> torch.Tensor:
         """Infer
         Args:
-            mel (torch.Tensor): Input mel-spectrogram, shape (B, T, input_channels) or (B, T, mel_bins).
+            wav (torch.Tensor): Input wav, (B, 1, T).
             sr (int, float): Sample rate.
             decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
             threshold (float): Threshold to mask. Default: 0.05.
         return: f0 (torch.Tensor): f0 Hz, shape (B, T, 1).
         """
         with torch.no_grad():
-            mel = self.wav2mel(mel, sr)
+            mel = self.wav2mel(wav, sr)
             f0 = self.model.infer(mel, decoder=decoder_mode, threshold=threshold)
         return f0  # (B, T, 1)
 
