@@ -1,7 +1,7 @@
 data:
   duration: 0.3483 # Audio duration during training, must be less than the duration of the shortest audio clip
-  train_path: yx1/train # Create a folder named "audio" under this path and put the audio clip in it
-  valid_path: yx1/val # Create a folder named "audio" under this path and put the audio clip in it
+  train_path: yx2/train # Create a folder named "audio" under this path and put the audio clip in it
+  valid_path: yx2/val # Create a folder named "audio" under this path and put the audio clip in it
   extensions: # List of extension included in the data collection
     - wav
 mel:
@@ -23,11 +23,12 @@ model:
   use_fa_norm: true
   residual_dropout: 0.1
   attention_dropout: 0.1
+  conv_only: false
 loss:
   loss_scale: 10
 device: cuda
 env:
-  expdir: exp/yx1_001
+  expdir: exp/yx2_001
   gpu_id: 0
 train:
   aug_add_music: true
@@ -45,7 +46,7 @@ train:
   aug_mask_iszeropad_mode: 'noise' # randon zero or noise
   aug_mask_block_num: 1
   aug_mask_block_num_v_o: 1
-  num_workers: 16 # If your cpu and gpu are both very strong, set to 0 may be faster!
+  num_workers: 14 # If your cpu and gpu are both very strong, set to 0 may be faster!
   amp_dtype: fp32 # only can ues fp32, else nan
   batch_size: 128
   cache_all_data: false # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
@@ -56,6 +57,6 @@ train:
   interval_force_save: 5000
   lr: 0.0005
   decay_step: 100000
-  gamma: 0.5
+  gamma: 0.7071
   weight_decay: 0.0001
   save_opt: false
