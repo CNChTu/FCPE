@@ -181,7 +181,7 @@ class F0Dataset(Dataset):
         self.f0_min = f0_min
         self.f0_max = f0_max
         self.f0_shift_mode = f0_shift_mode
-        self.n_spk = 3
+        self.n_spk = 4
         self.device = device
         self.load_all_data = load_all_data
         self.snb_noise = snb_noise
@@ -329,6 +329,7 @@ class F0Dataset(Dataset):
                     if len(audio_music.shape) > 1:
                         audio_music = librosa.to_mono(audio_music)
                         audio = audio + audio_music
+                        del audio_music
                         audio = 0.98 * audio / (np.abs(audio).max())
 
             else:
@@ -338,6 +339,7 @@ class F0Dataset(Dataset):
                         if random.choice((False, True)):
                             audio_music = data_buffer[3].copy()
                             audio = audio + audio_music
+                            del audio_music
                             audio = 0.98 * audio / (np.abs(audio).max())
 
             if random.choice((False, True)) and self.aug_keyshift:
@@ -377,7 +379,7 @@ class F0Dataset(Dataset):
             audio = 0.98 * audio / peak
             audio = torch.from_numpy(audio).float().unsqueeze(0).cpu()
             with torch.no_grad():
-                mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift).squeeze(0).cpu()
+                mel = self.wav2mel(audio, sample_rate=self.sample_rate, keyshift=keyshift, no_cache_window=True).squeeze(0).cpu()
 
             if self.aug_mask and bool(random.randint(0, 1)) and not is_aug_noise:
                 v_o = bool(random.randint(0, 1)) and self.aug_mask_v_o
