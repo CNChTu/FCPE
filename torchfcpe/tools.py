@@ -43,14 +43,14 @@ class InferCFNaiveMelPE:
                  wav: torch.Tensor,
                  sr: [int, float],
                  decoder_mode: str = 'local_argmax',
-                 threshold: float = 0.05
+                 threshold: float = 0.006
                  ) -> torch.Tensor:
         """Infer
         Args:
             wav (torch.Tensor): Input wav, (B, n_sample, 1).
             sr (int, float): Sample rate.
             decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
-            threshold (float): Threshold to mask. Default: 0.05.
+            threshold (float): Threshold to mask. Default: 0.006.
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1), 1).
         """
         with torch.no_grad():
@@ -59,9 +59,9 @@ class InferCFNaiveMelPE:
         return f0  # (B, T, 1)
 
 
-def spawn_infer_cf_naive_mel_pe_from_pt(pt_path: str, device: str = None) -> InferCFNaiveMelPE:
+def spawn_infer_model_from_pt(pt_path: str, device: str = None) -> InferCFNaiveMelPE:
     """
-    Spawn infer CFNaiveMelPE from pt file
+    Spawn infer model from pt file
     Args:
         pt_path (str): Path to pt file.
         device (str): Device. Default: None.
@@ -69,7 +69,10 @@ def spawn_infer_cf_naive_mel_pe_from_pt(pt_path: str, device: str = None) -> Inf
     device = get_device(device, 'torchfcpe.tools.spawn_infer_cf_naive_mel_pe_from_pt')
     ckpt = torch.load(pt_path, map_location=torch.device(device))
     args = DotDict(ckpt['config_dict'])
-    infer_model = InferCFNaiveMelPE(args, ckpt['model'], device)
+    if args.model.type == 'CFNaiveMelPE':
+        infer_model = InferCFNaiveMelPE(args, ckpt['model'], device)
+    else:
+        raise ValueError(f'  [ERROR] args.model.type is {args.model.type}, but only support CFNaiveMelPE')
     return infer_model
 
 
@@ -126,6 +129,12 @@ def spawn_model(args: DotDict) -> CFNaiveMelPE:
                 args.model.attention_dropout,
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
                 warning_str='args.model.attention_dropout is None',
+            ),
+            conv_only=catch_none_args_opti(
+                args.model.conv_only,
+                default=False,
+                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
+                warning_str='args.model.conv_only is None',
             ),
         )
     else:

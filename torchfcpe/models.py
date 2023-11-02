@@ -20,6 +20,7 @@ class CFNaiveMelPE(nn.Module):
         f0_min (float): Minimum frequency of f0.
         residual_dropout (float): Dropout rate of residual connection.
         attention_dropout (float): Dropout rate of attention.
+        conv_only (bool): Whether to use only conv module without attention, default False
     """
 
     def __init__(self,
@@ -33,6 +34,7 @@ class CFNaiveMelPE(nn.Module):
                  use_fa_norm: bool = False,
                  residual_dropout: float = 0.1,
                  attention_dropout: float = 0.1,
+                 conv_only: bool = False,
                  ):
         super().__init__()
         self.input_channels = input_channels
@@ -61,6 +63,7 @@ class CFNaiveMelPE(nn.Module):
             use_norm=use_fa_norm,
             residual_dropout=residual_dropout,
             attention_dropout=attention_dropout,
+            conv_only=conv_only,
         )
         # LayerNorm
         self.norm = nn.LayerNorm(hidden_dims)

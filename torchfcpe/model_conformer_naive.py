@@ -20,6 +20,7 @@ class ConformerNaiveEncoder(nn.Module):
         use_norm (bool): Whether to use norm for FastAttention, only True can use bf16/fp16, default False
         residual_dropout (float): Dropout rate of residual connection, default 0.1
         attention_dropout (float): Dropout rate of attention for each layer, default 0.1
+        conv_only (bool): Whether to use only conv module without attention, default False
     """
 
     def __init__(self,
@@ -29,6 +30,7 @@ class ConformerNaiveEncoder(nn.Module):
                  use_norm: bool = False,
                  residual_dropout: float = 0.1,
                  attention_dropout: float = 0.1,
+                 conv_only: bool = False
                  ):
         super().__init__()
         self.num_layers = num_layers
@@ -38,8 +40,9 @@ class ConformerNaiveEncoder(nn.Module):
         self.residual_dropout = residual_dropout
         self.attention_dropout = attention_dropout
 
-        self.encoder_layers = nn.ModuleList([CFNEncoderLayer(dim_model, num_heads, residual_dropout, use_norm)
-                                             for _ in range(num_layers)])
+        self.encoder_layers = nn.ModuleList(
+            [CFNEncoderLayer(dim_model, num_heads, residual_dropout, use_norm, conv_only) for _ in range(num_layers)]
+        )
 
     def forward(self, x, mask=None) -> torch.Tensor:
         """
@@ -70,7 +73,8 @@ class CFNEncoderLayer(nn.Module):
                  dim_model: int,
                  num_heads: int = 8,
                  residual_dropout: float = 0.1,
-                 use_norm: bool = False
+                 use_norm: bool = False,
+                 conv_only: bool = False
                  ):
         super().__init__()
 
@@ -79,10 +83,13 @@ class CFNEncoderLayer(nn.Module):
         self.dropout = nn.Dropout(residual_dropout)
 
         # selfatt -> fastatt: performer!
-        self.attn = SelfAttention(dim=dim_model,
-                                  heads=num_heads,
-                                  causal=False,
-                                  use_norm=use_norm)
+        if not conv_only:
+            self.attn = SelfAttention(dim=dim_model,
+                                      heads=num_heads,
+                                      causal=False,
+                                      use_norm=use_norm)
+        else:
+            self.attn = None
 
     def forward(self, x, mask=None) -> torch.Tensor:
         """
@@ -92,7 +99,8 @@ class CFNEncoderLayer(nn.Module):
         return:
             torch.Tensor: Output tensor (#batch, length, dim_model)
         """
-        x = x + (self.attn(self.norm(x), mask=mask))
+        if self.attn is not None:
+            x = x + (self.attn(self.norm(x), mask=mask))
 
         x = x + (self.conformer(x))
 

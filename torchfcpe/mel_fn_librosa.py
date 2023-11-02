@@ -1,7 +1,7 @@
 import numpy as np
 
 """
-librosa.filters is mel from librosa.filters
+from librosa.filters
 """
 
 
