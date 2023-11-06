@@ -18,9 +18,9 @@ class ConformerNaiveEncoder(nn.Module):
         num_layers (int): Number of layers
         num_heads (int): Number of heads
         use_norm (bool): Whether to use norm for FastAttention, only True can use bf16/fp16, default False
-        residual_dropout (float): Dropout rate of residual connection, default 0.1
-        attention_dropout (float): Dropout rate of attention for each layer, default 0.1
         conv_only (bool): Whether to use only conv module without attention, default False
+        conv_dropout (float): Dropout rate of conv module, default 0.
+        atten_dropout (float): Dropout rate of attention module, default 0.
     """
 
     def __init__(self,
@@ -28,20 +28,23 @@ class ConformerNaiveEncoder(nn.Module):
                  num_heads: int,
                  dim_model: int,
                  use_norm: bool = False,
-                 residual_dropout: float = 0.1,
-                 attention_dropout: float = 0.1,
-                 conv_only: bool = False
+                 conv_only: bool = False,
+                 conv_dropout: float = 0.,
+                 atten_dropout: float = 0.
                  ):
         super().__init__()
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.dim_model = dim_model
         self.use_norm = use_norm
-        self.residual_dropout = residual_dropout
-        self.attention_dropout = attention_dropout
+        self.residual_dropout = 0.1  # 废弃代码,仅做兼容性保留
+        self.attention_dropout = 0.1  # 废弃代码,仅做兼容性保留
 
         self.encoder_layers = nn.ModuleList(
-            [CFNEncoderLayer(dim_model, num_heads, residual_dropout, use_norm, conv_only) for _ in range(num_layers)]
+            [
+                CFNEncoderLayer(dim_model, num_heads, use_norm, conv_only, conv_dropout, atten_dropout)
+                for _ in range(num_layers)
+            ]
         )
 
     def forward(self, x, mask=None) -> torch.Tensor:
@@ -65,29 +68,40 @@ class CFNEncoderLayer(nn.Module):
     Args:
         dim_model (int): Dimension of model
         num_heads (int): Number of heads
-        residual_dropout (float): Dropout rate of residual connection, default 0.1
         use_norm (bool): Whether to use norm for FastAttention, only True can use bf16/fp16, default False
+        conv_only (bool): Whether to use only conv module without attention, default False
+        conv_dropout (float): Dropout rate of conv module, default 0.1
+        atten_dropout (float): Dropout rate of attention module, default 0.1
     """
 
     def __init__(self,
                  dim_model: int,
                  num_heads: int = 8,
-                 residual_dropout: float = 0.1,
                  use_norm: bool = False,
-                 conv_only: bool = False
+                 conv_only: bool = False,
+                 conv_dropout: float = 0.,
+                 atten_dropout: float = 0.
                  ):
         super().__init__()
 
-        self.conformer = ConformerConvModule(dim_model)
+        if conv_dropout > 0.:
+            self.conformer = nn.Sequential(
+                self.conformer,
+                nn.Dropout(conv_dropout)
+            )
+        else:
+            self.conformer = ConformerConvModule(dim_model)
         self.norm = nn.LayerNorm(dim_model)
-        self.dropout = nn.Dropout(residual_dropout)
+
+        self.dropout = nn.Dropout(0.1)  # 废弃代码,仅做兼容性保留
 
         # selfatt -> fastatt: performer!
         if not conv_only:
             self.attn = SelfAttention(dim=dim_model,
                                       heads=num_heads,
                                       causal=False,
-                                      use_norm=use_norm)
+                                      use_norm=use_norm,
+                                      dropout=atten_dropout, )
         else:
             self.attn = None
 

@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
-import numpy as np
 
 from .model_conformer_naive import ConformerNaiveEncoder
 
@@ -18,9 +17,10 @@ class CFNaiveMelPE(nn.Module):
         n_layers (int): Number of conformer layers.
         f0_max (float): Maximum frequency of f0.
         f0_min (float): Minimum frequency of f0.
-        residual_dropout (float): Dropout rate of residual connection.
-        attention_dropout (float): Dropout rate of attention.
+        use_fa_norm (bool): Whether to use fast attention norm, default False
         conv_only (bool): Whether to use only conv module without attention, default False
+        conv_dropout (float): Dropout rate of conv module, default 0.
+        atten_dropout (float): Dropout rate of attention module, default 0.
     """
 
     def __init__(self,
@@ -32,9 +32,9 @@ class CFNaiveMelPE(nn.Module):
                  f0_max: float = 1975.5,
                  f0_min: float = 32.70,
                  use_fa_norm: bool = False,
-                 residual_dropout: float = 0.1,
-                 attention_dropout: float = 0.1,
                  conv_only: bool = False,
+                 conv_dropout: float = 0.,
+                 atten_dropout: float = 0.
                  ):
         super().__init__()
         self.input_channels = input_channels
@@ -45,8 +45,8 @@ class CFNaiveMelPE(nn.Module):
         self.f0_max = f0_max
         self.f0_min = f0_min
         self.use_fa_norm = use_fa_norm
-        self.residual_dropout = residual_dropout
-        self.attention_dropout = attention_dropout
+        self.residual_dropout = 0.1  # 废弃代码,仅做兼容性保留
+        self.attention_dropout = 0.1  # 废弃代码,仅做兼容性保留
 
         # Input stack, convert mel-spectrogram to hidden_dims
         self.input_stack = nn.Sequential(
@@ -61,9 +61,9 @@ class CFNaiveMelPE(nn.Module):
             num_heads=n_heads,
             dim_model=hidden_dims,
             use_norm=use_fa_norm,
-            residual_dropout=residual_dropout,
-            attention_dropout=attention_dropout,
             conv_only=conv_only,
+            conv_dropout=conv_dropout,
+            atten_dropout=atten_dropout
         )
         # LayerNorm
         self.norm = nn.LayerNorm(hidden_dims)
@@ -165,7 +165,7 @@ class CFNaiveMelPE(nn.Module):
             torch.Tensor: Latent, shape (B, T, out_dims).
         """
         mask = (cents > 0.1) & (cents < self.gaussian_blurred_cent_mask)
-        #mask = (cents>0.1) & (cents<(1200.*np.log2(self.f0_max/10.)))
+        # mask = (cents>0.1) & (cents<(1200.*np.log2(self.f0_max/10.)))
         B, N, _ = cents.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
         return torch.exp(-torch.square(ci - cents) / 1250) * mask.float()

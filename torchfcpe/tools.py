@@ -120,21 +120,23 @@ def spawn_model(args: DotDict) -> CFNaiveMelPE:
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
                 warning_str='args.model.use_fa_norm is None',
             ),
-            residual_dropout=catch_none_args_must(
-                args.model.residual_dropout,
-                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.residual_dropout is None',
-            ),
-            attention_dropout=catch_none_args_must(
-                args.model.attention_dropout,
-                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.attention_dropout is None',
-            ),
             conv_only=catch_none_args_opti(
                 args.model.conv_only,
                 default=False,
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.conv_only is None',
+                warning_str='args.model.conv_only is None, use default False',
+            ),
+            conv_dropout=catch_none_args_opti(
+                args.model.conv_dropout,
+                default=0.,
+                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
+                warning_str='args.model.conv_dropout is None, use default 0.',
+            ),
+            atten_dropout=catch_none_args_opti(
+                args.model.atten_dropout,
+                default=0.,
+                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
+                warning_str='args.model.atten_dropout is None, use default 0.',
             ),
         )
     else:
