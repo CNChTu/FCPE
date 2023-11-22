@@ -86,7 +86,7 @@ class CFNEncoderLayer(nn.Module):
 
         if conv_dropout > 0.:
             self.conformer = nn.Sequential(
-                self.conformer,
+                ConformerConvModule(dim_model),
                 nn.Dropout(conv_dropout)
             )
         else:
