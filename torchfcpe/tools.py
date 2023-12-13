@@ -71,6 +71,7 @@ class InferCFNaiveMelPE:
               f0_min: float = None,
               f0_max: float = None,
               interp_uv: bool = False,
+              output_interp_target_length: int = None,
               ) -> torch.Tensor:
         """Infer
         Args:
@@ -81,15 +82,24 @@ class InferCFNaiveMelPE:
             f0_min (float): Minimum f0. Default: None. Use in post-processing.
             f0_max (float): Maximum f0. Default: None. Use in post-processing.
             interp_uv (bool): Interpolate unvoiced frames. Default: False.
-        return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1), 1).
+            output_interp_target_length (int): Output interpolation target length. Default: None.
+        return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1) or output_interp_target_length, 1).
         """
+        # infer
         f0 = self.__call__(wav, sr, decoder_mode, threshold)
         if f0_min is None:
             f0_min = self.args.model.f0_min
+        # interp
         if interp_uv:
             f0 = batch_interp_with_replacement_detach((f0.squeeze(-1) < f0_min), f0.squeeze(-1)).unsqueeze(-1)
         if f0_max is not None:
             f0[f0 > f0_max] = f0_max
+        if output_interp_target_length is not None:
+            f0 = torch.nn.functional.interpolate(
+                f0.transpose(1, 2),
+                size=int(output_interp_target_length),
+                mode='nearest'
+            ).transpose(1, 2)
         return f0
 
     def get_hop_size(self) -> int:
