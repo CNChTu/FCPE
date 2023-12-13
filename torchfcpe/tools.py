@@ -1,6 +1,9 @@
 import torch
 from .mel_extractor import Wav2Mel
 from .models import CFNaiveMelPE
+from .torch_interp import batch_interp_with_replacement_detach
+import pathlib
+import json
 
 
 class DotDict(dict):
@@ -38,6 +41,7 @@ class InferCFNaiveMelPE:
         self.model.load_state_dict(state_dict)
         self.model.to(device)
         self.model.eval()
+        self.args = args
 
     def __call__(self,
                  wav: torch.Tensor,
@@ -48,15 +52,118 @@ class InferCFNaiveMelPE:
         """Infer
         Args:
             wav (torch.Tensor): Input wav, (B, n_sample, 1).
-            sr (int, float): Sample rate.
+            sr (int, float): Input wav sample rate.
             decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
             threshold (float): Threshold to mask. Default: 0.006.
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1), 1).
         """
         with torch.no_grad():
+            wav = wav.to(self.device)
             mel = self.wav2mel(wav, sr)
             f0 = self.model.infer(mel, decoder=decoder_mode, threshold=threshold)
         return f0  # (B, T, 1)
+
+    def infer(self,
+              wav: torch.Tensor,
+              sr: [int, float],
+              decoder_mode: str = 'local_argmax',
+              threshold: float = 0.006,
+              f0_min: float = None,
+              f0_max: float = None,
+              interp_uv: bool = False,
+              ) -> torch.Tensor:
+        """Infer
+        Args:
+            wav (torch.Tensor): Input wav, (B, n_sample, 1).
+            sr (int, float): Input wav sample rate.
+            decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
+            threshold (float): Threshold to mask. Default: 0.006.
+            f0_min (float): Minimum f0. Default: None. Use in post-processing.
+            f0_max (float): Maximum f0. Default: None. Use in post-processing.
+            interp_uv (bool): Interpolate unvoiced frames. Default: False.
+        return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1), 1).
+        """
+        f0 = self.__call__(wav, sr, decoder_mode, threshold)
+        if f0_min is None:
+            f0_min = self.args.model.f0_min
+        if interp_uv:
+            f0 = batch_interp_with_replacement_detach((f0.squeeze(-1) < f0_min), f0.squeeze(-1)).unsqueeze(-1)
+        if f0_max is not None:
+            f0[f0 > f0_max] = f0_max
+        return f0
+
+    def get_hop_size(self) -> int:
+        """Get hop size"""
+        return self.args.mel.hop_size
+
+    def get_hop_size_ms(self) -> float:
+        """Get hop size in ms"""
+        return self.args.mel.hop_size / self.args.mel.sr * 1000
+
+    def get_model_sr(self) -> int:
+        """Get model sample rate"""
+        return self.args.mel.sr
+
+    def get_mel_config(self) -> dict:
+        """Get mel config"""
+        return dict(self.args.mel)
+
+    def get_device(self) -> str:
+        """Get device"""
+        return self.device
+
+    def get_model_f0_range(self) -> dict:
+        """Get model f0 range like {'f0_min': 32.70, 'f0_max': 1975.5}"""
+        return {'f0_min': self.args.model.f0_min, 'f0_max': self.args.model.f0_max}
+
+
+class InferCFNaiveMelPEONNX:
+    """Infer CFNaiveMelPE ONNX
+    Args:
+        args (DotDict): Config.
+        onnx_path (str): Path to onnx file.
+        device (str): Device. must be not None.
+    """
+
+    def __init__(self, args, onnx_path, device):
+        raise NotImplementedError
+
+
+def spawn_bundled_infer_model(device: str = None) -> InferCFNaiveMelPE:
+    """
+    Spawn bundled infer model
+    This model has been trained on our dataset and comes with the package.
+    You can use it directly without anything else.
+    Args:
+        device (str): Device. Default: None.
+    """
+    file_path = pathlib.Path(__file__)
+    model_path = file_path.parent / 'assets' / 'fcpe_c_v001.pt'
+    model = spawn_infer_model_from_pt(str(model_path), device)
+    return model
+
+
+def spawn_infer_model_from_onnx(onnx_path: str, device: str = None) -> InferCFNaiveMelPEONNX:
+    """
+    Spawn infer model from onnx file
+    Args:
+        onnx_path (str): Path to onnx file.
+        device (str): Device. Default: None.
+    """
+    device = get_device(device, 'torchfcpe.tools.spawn_infer_cf_naive_mel_pe_from_onnx')
+    config_path = get_config_json_in_same_path(onnx_path)
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config_dict = json.load(f)
+        args = DotDict(config_dict)
+    if (args.is_onnx is None) or (args.is_onnx is False):
+        raise ValueError(f'  [ERROR] spawn_infer_model_from_onnx: this model is not onnx model.')
+
+    if args.model.type == 'CFNaiveMelPEONNX':
+        infer_model = InferCFNaiveMelPEONNX(args, onnx_path, device)
+    else:
+        raise ValueError(f'  [ERROR] args.model.type is {args.model.type}, but only support CFNaiveMelPEONNX')
+
+    return infer_model
 
 
 def spawn_infer_model_from_pt(pt_path: str, device: str = None) -> InferCFNaiveMelPE:
@@ -69,10 +176,14 @@ def spawn_infer_model_from_pt(pt_path: str, device: str = None) -> InferCFNaiveM
     device = get_device(device, 'torchfcpe.tools.spawn_infer_cf_naive_mel_pe_from_pt')
     ckpt = torch.load(pt_path, map_location=torch.device(device))
     args = DotDict(ckpt['config_dict'])
+    if (args.is_onnx is not None) and (args.is_onnx is True):
+        raise ValueError(f'  [ERROR] spawn_infer_model_from_pt: this model is an onnx model.')
+
     if args.model.type == 'CFNaiveMelPE':
         infer_model = InferCFNaiveMelPE(args, ckpt['model'], device)
     else:
         raise ValueError(f'  [ERROR] args.model.type is {args.model.type}, but only support CFNaiveMelPE')
+
     return infer_model
 
 
@@ -244,3 +355,37 @@ def get_device(device: str, func_name: str) -> str:
         print(f'  [INFO]    > call by:{func_name}')
         device = device
     return device
+
+
+def get_config_json_in_same_path(path: str) -> str:
+    """Get config json in same path"""
+    path = pathlib.Path(path)
+    config_json = path.parent / 'config.json'
+    if config_json.exists():
+        return str(config_json)
+    else:
+        raise FileNotFoundError(f'  [ERROR] {config_json} not found.')
+
+
+def bundled_infer_model_unit_test(wav_path):
+    """Unit test for bundled infer model"""
+    # wav_path is your wav file path
+    try:
+        import matplotlib.pyplot as plt
+        import librosa
+    except ImportError:
+        print('  [UNIT_TEST] torchfcpe.tools.spawn_infer_model_from_pt: matplotlib or librosa not found, skip test')
+        exit(1)
+
+    infer_model = spawn_bundled_infer_model(device='cpu')
+    wav, sr = librosa.load(wav_path, sr=16000)
+    f0 = infer_model.infer(torch.tensor(wav).unsqueeze(0), sr, interp_uv=False)
+    f0_interp = infer_model.infer(torch.tensor(wav).unsqueeze(0), sr, interp_uv=True)
+    plt.plot(f0.squeeze(-1).squeeze(0).numpy(), color='r', linestyle='-')
+    plt.plot(f0_interp.squeeze(-1).squeeze(0).numpy(), color='g', linestyle='-')
+    # 添加图例
+    plt.legend(['f0', 'f0_interp'])
+    plt.xlabel('frame')
+    plt.ylabel('f0')
+    plt.title('f0')
+    plt.show()
