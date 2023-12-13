@@ -1,15 +1,38 @@
-# Fast Context-based Pitch Estimation (原MelPE)
-~纯粹实验性的从mel到f0的f0提取器，性能可能很玩具，如果成功将会被用于[Diffusion-SVC](https://github.com/CNChTu/Diffusion-SVC), 兴许[so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)也会用。新图例已更新。~
+<h1 align="center">TorchFCPE</h1>
+<div align="center">
 
-性能不玩具！[Diffusion-SVC](https://github.com/CNChTu/Diffusion-SVC)已经实装。~[so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)马上就来。
-[so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)Latest 版本堂堂公测！。~ [so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)已正式投入使用
+</div>
 
-![Diagram](./test.png)
 
-## 网络结构图
+## Useage
 
-![Diagram](./net_arc.png)
+```python
+from torchfcpe import spawn_bundled_infer_model
+import torch
+import librosa
 
-## 训练方案
+# device
+device = 'cpu'
 
-![Diagram](train_method.png)
+# load audio
+audio, sr = librosa.load('test.wav', sr=16000)
+audio = librosa.to_mono(audio)
+audio = torch.from_numpy(audio).float().unsqueeze(0).unsqueeze(-1).to(device)
+
+# load model
+model = spawn_bundled_infer_model(device=device)
+
+# infer
+f0 = model.infer(
+    audio,
+    sr=sr,
+    decoder_mode='local_argmax',
+    threshold=0.006,
+    f0_min=80,
+    f0_max=880,
+    interp_uv=False
+)
+
+print(f0)
+```
+
