@@ -12,7 +12,7 @@ setup(
     author='CNChTu',
     author_email='2921046558@qq.com',
     url='https://github.com/CNChTu/FCPE',
-    install_requires=['einops', 'local_attention', 'torchaudio', 'numpy'],
+    install_requires=['einops', 'local_attention', 'torch', 'torchaudio', 'numpy'],
     packages=['torchfcpe'],
     package_data={'torchfcpe': ['assets/*']},
     long_description=long_description,
