@@ -72,7 +72,8 @@ class InferCFNaiveMelPE:
               f0_max: float = None,
               interp_uv: bool = False,
               output_interp_target_length: int = None,
-              ) -> torch.Tensor:
+              retur_uv: bool = False
+              ) -> torch.Tensor or (torch.Tensor, torch.Tensor):
         """Infer
         Args:
             wav (torch.Tensor): Input wav, (B, n_sample, 1).
@@ -83,15 +84,18 @@ class InferCFNaiveMelPE:
             f0_max (float): Maximum f0. Default: None. Use in post-processing.
             interp_uv (bool): Interpolate unvoiced frames. Default: False.
             output_interp_target_length (int): Output interpolation target length. Default: None.
+            retur_uv (bool): Return unvoiced frames. Default: False.
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1) or output_interp_target_length, 1).
+            if return_uv is True, return f0, uv. the shape of uv(torch.Tensor) is like f0.
         """
         # infer
         f0 = self.__call__(wav, sr, decoder_mode, threshold)
         if f0_min is None:
             f0_min = self.args.model.f0_min
+        uv = (f0 < f0_min).type(f0.dtype)
         # interp
         if interp_uv:
-            f0 = batch_interp_with_replacement_detach((f0.squeeze(-1) < f0_min), f0.squeeze(-1)).unsqueeze(-1)
+            f0 = batch_interp_with_replacement_detach(uv.squeeze(-1).bool(), f0.squeeze(-1)).unsqueeze(-1)
         if f0_max is not None:
             f0[f0 > f0_max] = f0_max
         if output_interp_target_length is not None:
@@ -100,7 +104,16 @@ class InferCFNaiveMelPE:
                 size=int(output_interp_target_length),
                 mode='nearest'
             ).transpose(1, 2)
-        return f0
+        # if return_uv is True, interp and return uv
+        if retur_uv:
+            uv = torch.nn.functional.interpolate(
+                uv.transpose(1, 2),
+                size=int(output_interp_target_length),
+                mode='nearest'
+            ).transpose(1, 2)
+            return f0, uv
+        else:
+            return f0
 
     def get_hop_size(self) -> int:
         """Get hop size"""
@@ -149,7 +162,7 @@ def spawn_bundled_infer_model(device: str = None) -> InferCFNaiveMelPE:
     """
     file_path = pathlib.Path(__file__)
     model_path = file_path.parent / 'assets' / 'fcpe_c_v001.pt'
-    model = spawn_infer_model_from_pt(str(model_path), device)
+    model = spawn_infer_model_from_pt(str(model_path), device, bundled_model=True)
     return model
 
 
@@ -176,15 +189,19 @@ def spawn_infer_model_from_onnx(onnx_path: str, device: str = None) -> InferCFNa
     return infer_model
 
 
-def spawn_infer_model_from_pt(pt_path: str, device: str = None) -> InferCFNaiveMelPE:
+def spawn_infer_model_from_pt(pt_path: str, device: str = None, bundled_model: bool = False) -> InferCFNaiveMelPE:
     """
     Spawn infer model from pt file
     Args:
         pt_path (str): Path to pt file.
         device (str): Device. Default: None.
+        bundled_model (bool): Whether this model is bundled model, only used in spawn_bundled_infer_model.
     """
     device = get_device(device, 'torchfcpe.tools.spawn_infer_cf_naive_mel_pe_from_pt')
     ckpt = torch.load(pt_path, map_location=torch.device(device))
+    if bundled_model:
+        ckpt['config_dict']['model']['conv_dropout'] = 0.0
+        ckpt['config_dict']['model']['atten_dropout'] = 0.0
     args = DotDict(ckpt['config_dict'])
     if (args.is_onnx is not None) and (args.is_onnx is True):
         raise ValueError(f'  [ERROR] spawn_infer_model_from_pt: this model is an onnx model.')
@@ -245,19 +262,25 @@ def spawn_model(args: DotDict) -> CFNaiveMelPE:
                 args.model.conv_only,
                 default=False,
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.conv_only is None, use default False',
+                warning_str='args.model.conv_only is None',
             ),
             conv_dropout=catch_none_args_opti(
                 args.model.conv_dropout,
                 default=0.,
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.conv_dropout is None, use default 0.',
+                warning_str='args.model.conv_dropout is None',
             ),
             atten_dropout=catch_none_args_opti(
                 args.model.atten_dropout,
                 default=0.,
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
-                warning_str='args.model.atten_dropout is None, use default 0.',
+                warning_str='args.model.atten_dropout is None',
+            ),
+            use_harmonic_emb=catch_none_args_opti(
+                args.model.use_harmonic_emb,
+                default=False,
+                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
+                warning_str='args.model.use_harmonic_emb is None',
             ),
         )
     else:
@@ -310,12 +333,7 @@ def spawn_wav2mel(args: DotDict, device: str = None) -> Wav2Mel:
             func_name='torchfcpe.tools.spawn_wav2mel',
             warning_str='args.mel.fmax is None',
         ),
-        clip_val=catch_none_args_opti(
-            args.mel.clip_val,
-            default=1e-5,
-            func_name='torchfcpe.tools.spawn_wav2mel',
-            warning_str='args.mel.clip_val is None',
-        ),
+        clip_val=1e-05,
         device=catch_none_args_opti(
             device,
             default='cpu',

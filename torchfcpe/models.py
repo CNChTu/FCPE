@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils import weight_norm
+
+# import weight_norm from different version of pytorch
+try:
+    from torch.nn.utils.parametrizations import weight_norm
+except ImportError:
+    from torch.nn.utils import weight_norm
 
 from .model_conformer_naive import ConformerNaiveEncoder
 
@@ -21,6 +26,7 @@ class CFNaiveMelPE(nn.Module):
         conv_only (bool): Whether to use only conv module without attention, default False
         conv_dropout (float): Dropout rate of conv module, default 0.
         atten_dropout (float): Dropout rate of attention module, default 0.
+        use_harmonic_emb (bool): Whether to use harmonic embedding, default False
     """
 
     def __init__(self,
@@ -34,7 +40,8 @@ class CFNaiveMelPE(nn.Module):
                  use_fa_norm: bool = False,
                  conv_only: bool = False,
                  conv_dropout: float = 0.,
-                 atten_dropout: float = 0.
+                 atten_dropout: float = 0.,
+                 use_harmonic_emb: bool = False,
                  ):
         super().__init__()
         self.input_channels = input_channels
@@ -47,6 +54,12 @@ class CFNaiveMelPE(nn.Module):
         self.use_fa_norm = use_fa_norm
         self.residual_dropout = 0.1  # 废弃代码,仅做兼容性保留
         self.attention_dropout = 0.1  # 废弃代码,仅做兼容性保留
+
+        # Harmonic embedding
+        if use_harmonic_emb:
+            self.harmonic_emb = nn.Embedding(9, hidden_dims)
+        else:
+            self.harmonic_emb = None
 
         # Input stack, convert mel-spectrogram to hidden_dims
         self.input_stack = nn.Sequential(
@@ -86,14 +99,20 @@ class CFNaiveMelPE(nn.Module):
         self.gaussian_blurred_cent_mask_b = (1200. * torch.log2(torch.Tensor([self.f0_max / 10.])))[0].detach()
         self.register_buffer("gaussian_blurred_cent_mask", self.gaussian_blurred_cent_mask_b)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, _h_emb=None) -> torch.Tensor:
         """
         Args:
             x (torch.Tensor): Input mel-spectrogram, shape (B, T, input_channels) or (B, T, mel_bins).
+            _h_emb (int): Harmonic embedding index, like 0, 1, 2， only use in train. Default: None.
         return:
             torch.Tensor: Predicted f0 latent, shape (B, T, out_dims).
         """
         x = self.input_stack(x.transpose(-1, -2)).transpose(-1, -2)
+        if self.harmonic_emb is not None:
+            if _h_emb is None:
+                x = x + self.harmonic_emb(torch.LongTensor([0]).to(x.device))
+            else:
+                x = x + self.harmonic_emb(torch.LongTensor([int(_h_emb)]).to(x.device))
         x = self.net(x)
         x = self.norm(x)
         x = self.output_proj(x)
@@ -206,8 +225,20 @@ class CFNaiveMelPE(nn.Module):
             gt_f0 = gt_f0[:, :_len, :]
         gt_cent_f0 = self.f0_to_cent(gt_f0)  # mel f0, [B,N,1]
         x_gt = self.gaussian_blurred_cent2latent(gt_cent_f0)  # [B,N,out_dim]
-        x = self.forward(mel)  # [B,N,out_dim]
-        loss = F.binary_cross_entropy(x, x_gt) * loss_scale
+        if self.harmonic_emb is not None:
+            x = self.forward(mel, _h_emb=0)
+            x_half = self.forward(mel, _h_emb=1)
+            x_gt_half = self.gaussian_blurred_cent2latent(gt_cent_f0 / 2)
+            x_gt_double = self.gaussian_blurred_cent2latent(gt_cent_f0 * 2)
+            x_double = self.forward(mel, _h_emb=2)
+            loss = F.binary_cross_entropy(x, x_gt)
+            loss_half = F.binary_cross_entropy(x_half, x_gt_half)
+            loss_double = F.binary_cross_entropy(x_double, x_gt_double)
+            loss = loss + (loss_half + loss_double)/2
+            loss = loss * loss_scale
+        else:
+            x = self.forward(mel)  # [B,N,out_dim]
+            loss = F.binary_cross_entropy(x, x_gt) * loss_scale
         return loss
 
     @torch.no_grad()
