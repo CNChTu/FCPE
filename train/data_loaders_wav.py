@@ -11,8 +11,13 @@ import torch.multiprocessing as mp
 import utils_all as ut
 import pandas as pd
 import torchfcpe
-
-
+from redis_coder import RedisService, encode_wb, decode_wb
+DATABUFFER = RedisService(
+    host='localhost',
+    password='',
+    port=6379,
+    max_connections=16
+)
 def traverse_dir(
         root_dir,
         extensions,
@@ -82,7 +87,8 @@ def get_data_loaders(args):
         f0_min=args.model.f0_min,
         f0_max=args.model.f0_max,
         f0_shift_mode='keyshift',
-        load_data_num_processes=4
+        load_data_num_processes=8,
+        use_redis=args.train.use_redis
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -155,7 +161,8 @@ class F0Dataset(Dataset):
             f0_shift_mode='keyshift',
             load_data_num_processes=1,
             snb_noise=None,
-            noise_beta=0
+            noise_beta=0,
+            use_redis=False
     ):
         super().__init__()
         self.music_spk_id = 1
@@ -186,6 +193,7 @@ class F0Dataset(Dataset):
         self.load_all_data = load_all_data
         self.snb_noise = snb_noise
         self.noise_beta = noise_beta
+        self.use_redis = use_redis
 
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
@@ -196,23 +204,29 @@ class F0Dataset(Dataset):
         )
 
         self.whole_audio = whole_audio
-        self.data_buffer = {}
+        if self.use_redis:
+            self.data_buffer = None
+        else:
+            self.data_buffer = {}
         self.device = device
         if load_all_data:
             print('Load all the data from :', path_root)
         else:
             print('Load the f0, volume data from :', path_root)
 
-        with torch.no_grad():
-            with ProcessPoolExecutor(max_workers=load_data_num_processes) as executor:
-                tasks = []
-                for i in range(load_data_num_processes):
-                    start = int(i * len(self.paths) / load_data_num_processes)
-                    end = int((i + 1) * len(self.paths) / load_data_num_processes)
-                    file_chunk = self.paths[start:end]
-                    tasks.append(file_chunk)
-                for data_buffer in executor.map(self.load_data, tasks):
-                    self.data_buffer.update(data_buffer)
+        if self.use_redis:
+            _ = self.load_data(self.paths)
+        else:
+            with torch.no_grad():
+                with ProcessPoolExecutor(max_workers=load_data_num_processes) as executor:
+                    tasks = []
+                    for i in range(load_data_num_processes):
+                        start = int(i * len(self.paths) / load_data_num_processes)
+                        end = int((i + 1) * len(self.paths) / load_data_num_processes)
+                        file_chunk = self.paths[start:end]
+                        tasks.append(file_chunk)
+                    for data_buffer in executor.map(self.load_data, tasks):
+                        self.data_buffer.update(data_buffer)
 
             self.paths = np.array(self.paths, dtype=object)
             self.data_buffer = pd.DataFrame(self.data_buffer)
@@ -270,7 +284,18 @@ class F0Dataset(Dataset):
                         't_spk_id': t_spk_id,
                     }
                     """
-                    data_buffer[name_ext] = (duration, f0, audio, audio_music)
+                    if self.use_redis:
+                        f0 = encode_wb(f0, f0.dtype, f0.shape)
+                        audio = encode_wb(audio, audio.dtype, audio.shape)
+                        if audio_music is not None:
+                            audio_music = encode_wb(audio_music, audio_music.dtype, audio_music.shape)
+                        else:
+                            audio_music = int(0)
+                        if self.use_redis:
+                            DATABUFFER[name_ext] = list((duration, f0, audio, audio_music))
+                        data_buffer = None
+                    else:
+                        data_buffer[name_ext] = (duration, f0, audio, audio_music)
                 else:
                     if spk_id == self.music_spk_id:
                         use_music = True
@@ -290,19 +315,22 @@ class F0Dataset(Dataset):
     def __getitem__(self, file_idx):
         with torch.no_grad():
             name_ext = self.paths[file_idx]
-            data_buffer = self.data_buffer[name_ext]
+            if self.use_redis:
+                data_buffer = DATABUFFER[name_ext]
+            else:
+                data_buffer = self.data_buffer[name_ext]
             # check duration. if too short, then skip
-            if data_buffer[0] < (self.waveform_sec + 0.1):
+            if float(data_buffer[0]) < (self.waveform_sec + 0.1):
                 return self.__getitem__((file_idx + 1) % len(self.paths))
 
             # get item
-            return self.get_data(name_ext, data_buffer)
+            return self.get_data(name_ext, tuple(data_buffer))
 
     def get_data(self, name_ext, data_buffer):
         with torch.no_grad():
             name = os.path.splitext(name_ext)[0]
             frame_resolution = self.hop_size / self.sample_rate
-            duration = data_buffer[0]
+            duration = float(data_buffer[0])
             waveform_sec = duration if self.whole_audio else self.waveform_sec
 
             # load audio
@@ -311,7 +339,11 @@ class F0Dataset(Dataset):
             units_frame_len = int(waveform_sec / frame_resolution)
 
             # load f0
-            f0 = data_buffer[1].copy()
+            if self.use_redis and self.load_all_data:
+                f0 = decode_wb(data_buffer[1])
+                f0 = f0.copy()
+            else:
+                f0 = data_buffer[1].copy()
             f0 = torch.from_numpy(f0).float().cpu()
 
             # load mel
@@ -333,14 +365,28 @@ class F0Dataset(Dataset):
                         audio = 0.98 * audio / (np.abs(audio).max())
 
             else:
-                audio = data_buffer[2].copy()
+                if self.use_redis:
+                    audio = decode_wb(data_buffer[2])
+                    audio = audio.copy()
+                else:
+                    audio = data_buffer[2].copy()
                 if len(data_buffer) == 4:
-                    if data_buffer[3] is not None:
-                        if random.choice((False, True)):
-                            audio_music = data_buffer[3].copy()
+                    if self.use_redis:
+                        if len(data_buffer[3]) == 1:
+                            pass
+                        else:
+                            audio_music = decode_wb(data_buffer[3])
+                            audio_music = audio_music.copy()
                             audio = audio + audio_music
                             del audio_music
                             audio = 0.98 * audio / (np.abs(audio).max())
+                    else:
+                        if data_buffer[3] is not None:
+                            if random.choice((False, True)):
+                                audio_music = data_buffer[3].copy()
+                                audio = audio + audio_music
+                                del audio_music
+                                audio = 0.98 * audio / (np.abs(audio).max())
 
             if random.choice((False, True)) and self.aug_keyshift:
                 if self.f0_shift_mode == 'keyshift':
