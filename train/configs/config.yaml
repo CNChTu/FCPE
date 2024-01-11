@@ -1,7 +1,7 @@
 data:
   duration: 0.3483 # Audio duration during training, must be less than the duration of the shortest audio clip
-  train_path: yx2/train # Create a folder named "audio" under this path and put the audio clip in it
-  valid_path: yx2/val # Create a folder named "audio" under this path and put the audio clip in it
+  train_path: 'yx2/train' # Create a folder named "audio" under this path and put the audio clip in it
+  valid_path: 'yx2/val' # Create a folder named "audio" under this path and put the audio clip in it
   extensions: # List of extension included in the data collection
     - wav
 mel:
@@ -21,14 +21,15 @@ model:
   f0_min: 32.70
   f0_max: 1975.5
   use_fa_norm: true
-  conv_only: false
+  conv_only: true
   conv_dropout: 0.0
   atten_dropout: 0.0
+  use_harmonic_emb: true
 loss:
   loss_scale: 10
 device: cuda
 env:
-  expdir: exp/yx2_001ac
+  expdir: exp/yx2_001ach
   gpu_id: 0
 train:
   aug_add_music: true
@@ -46,10 +47,11 @@ train:
   aug_mask_iszeropad_mode: 'noise' # randon zero or noise
   aug_mask_block_num: 1
   aug_mask_block_num_v_o: 1
-  num_workers: 14 # If your cpu and gpu are both very strong, set to 0 may be faster!
+  num_workers: 16 # If your cpu and gpu are both very strong, set to 0 may be faster!
   amp_dtype: fp32 # only can ues fp32, else nan
   batch_size: 128
-  cache_all_data: false # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
+  use_redis: true
+  cache_all_data: true # Save Internal-Memory or Graphics-Memory if it is false, but may be slow
   cache_device: 'cpu' # Set to 'cuda' to cache the data into the Graphics-Memory, fastest speed for strong gpu
   epochs: 100000
   interval_log: 100
