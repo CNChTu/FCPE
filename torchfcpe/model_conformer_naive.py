@@ -125,22 +125,21 @@ class ConformerConvModule(nn.Module):
     def __init__(
             self,
             dim,
-            causal=False,
             expansion_factor=2,
             kernel_size=31,
             dropout=0.):
         super().__init__()
 
         inner_dim = dim * expansion_factor
-        padding = calc_same_padding(kernel_size) if not causal else (kernel_size - 1, 0)
+        padding = calc_same_padding(kernel_size)
 
         self.net = nn.Sequential(
             nn.LayerNorm(dim),
             Transpose((1, 2)),
             nn.Conv1d(dim, inner_dim * 2, 1),
-            GLU(dim=1),
-            DepthWiseConv1d(inner_dim, inner_dim, kernel_size=kernel_size, padding=padding),
-            Swish(),
+            nn.GLU(dim=1),
+            DepthWiseConv1d(inner_dim, inner_dim, kernel_size=kernel_size, padding=padding[0], groups=inner_dim),
+            nn.SiLU(),
             nn.Conv1d(inner_dim, dim, 1),
             Transpose((1, 2)),
             nn.Dropout(dropout)
@@ -151,13 +150,11 @@ class ConformerConvModule(nn.Module):
 
 
 class DepthWiseConv1d(nn.Module):
-    def __init__(self, chan_in, chan_out, kernel_size, padding):
+    def __init__(self, chan_in, chan_out, kernel_size, padding, groups):
         super().__init__()
-        self.padding = padding
-        self.conv = nn.Conv1d(chan_in, chan_out, kernel_size, groups=chan_in)
+        self.conv = nn.Conv1d(chan_in, chan_out, kernel_size=kernel_size, padding=padding, groups=groups)
 
     def forward(self, x):
-        x = F.pad(x, self.padding)
         return self.conv(x)
 
 
@@ -174,21 +171,6 @@ class Transpose(nn.Module):
 
     def forward(self, x):
         return x.transpose(*self.dims)
-
-
-class GLU(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, x):
-        out, gate = x.chunk(2, dim=self.dim)
-        return out * gate.sigmoid()
-
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * x.sigmoid()
 
 
 class SelfAttention(nn.Module):
