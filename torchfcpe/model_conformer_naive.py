@@ -21,6 +21,7 @@ class ConformerNaiveEncoder(nn.Module):
         conv_only (bool): Whether to use only conv module without attention, default False
         conv_dropout (float): Dropout rate of conv module, default 0.
         atten_dropout (float): Dropout rate of attention module, default 0.
+        use_pre_norm (bool): Whether to use pre-norm, default False
     """
 
     def __init__(self,
@@ -30,7 +31,8 @@ class ConformerNaiveEncoder(nn.Module):
                  use_norm: bool = False,
                  conv_only: bool = False,
                  conv_dropout: float = 0.,
-                 atten_dropout: float = 0.
+                 atten_dropout: float = 0.,
+                 use_pre_norm=False
                  ):
         super().__init__()
         self.num_layers = num_layers
@@ -42,7 +44,7 @@ class ConformerNaiveEncoder(nn.Module):
 
         self.encoder_layers = nn.ModuleList(
             [
-                CFNEncoderLayer(dim_model, num_heads, use_norm, conv_only, conv_dropout, atten_dropout)
+                CFNEncoderLayer(dim_model, num_heads, use_norm, conv_only, conv_dropout, atten_dropout, use_pre_norm)
                 for _ in range(num_layers)
             ]
         )
@@ -72,6 +74,7 @@ class CFNEncoderLayer(nn.Module):
         conv_only (bool): Whether to use only conv module without attention, default False
         conv_dropout (float): Dropout rate of conv module, default 0.1
         atten_dropout (float): Dropout rate of attention module, default 0.1
+        use_pre_norm (bool): Whether to use pre-norm, default False
     """
 
     def __init__(self,
@@ -80,18 +83,20 @@ class CFNEncoderLayer(nn.Module):
                  use_norm: bool = False,
                  conv_only: bool = False,
                  conv_dropout: float = 0.,
-                 atten_dropout: float = 0.
+                 atten_dropout: float = 0.,
+                 use_pre_norm=False
                  ):
         super().__init__()
 
         if conv_dropout > 0.:
             self.conformer = nn.Sequential(
-                ConformerConvModule(dim_model),
+                ConformerConvModule(dim_model, use_pre_norm=use_pre_norm),
                 nn.Dropout(conv_dropout)
             )
         else:
             self.conformer = ConformerConvModule(dim_model)
         self.norm = nn.LayerNorm(dim_model)
+        self.use_pre_norm = use_pre_norm
 
         self.dropout = nn.Dropout(0.1)  # 废弃代码,仅做兼容性保留
 
@@ -114,7 +119,9 @@ class CFNEncoderLayer(nn.Module):
             torch.Tensor: Output tensor (#batch, length, dim_model)
         """
         if self.attn is not None:
-            x = x + (self.attn(self.norm(x), mask=mask))
+            if self.use_pre_norm:
+                x = self.norm(x) + x
+            x = x + (self.attn(x, mask=mask))
 
         x = x + (self.conformer(x))
 
@@ -127,14 +134,21 @@ class ConformerConvModule(nn.Module):
             dim,
             expansion_factor=2,
             kernel_size=31,
-            dropout=0.):
+            dropout=0.,
+            use_pre_norm=False
+    ):
         super().__init__()
 
         inner_dim = dim * expansion_factor
         padding = calc_same_padding(kernel_size)
 
+        if use_pre_norm:
+            _norm = PreNorm(dim)
+        else:
+            _norm = nn.LayerNorm(dim)
+
         self.net = nn.Sequential(
-            nn.LayerNorm(dim),
+            _norm,
             Transpose((1, 2)),
             nn.Conv1d(dim, inner_dim * 2, 1),
             nn.GLU(dim=1),
@@ -171,6 +185,15 @@ class Transpose(nn.Module):
 
     def forward(self, x):
         return x.transpose(*self.dims)
+
+
+class PreNorm(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, x):
+        return self.norm(x) + x
 
 
 class SelfAttention(nn.Module):

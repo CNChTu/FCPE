@@ -282,6 +282,12 @@ def spawn_model(args: DotDict) -> CFNaiveMelPE:
                 func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
                 warning_str='args.model.use_harmonic_emb is None',
             ),
+            use_pre_norm=catch_none_args_opti(
+                args.model.use_pre_norm,
+                default=False,
+                func_name='torchfcpe.tools.spawn_cf_naive_mel_pe',
+                warning_str='args.model.use_pre_norm is None',
+            ),
         )
     else:
         raise ValueError(f'  [ERROR] args.model.type is {args.model.type}, but only support CFNaiveMelPE')

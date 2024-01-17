@@ -27,6 +27,7 @@ class CFNaiveMelPE(nn.Module):
         conv_dropout (float): Dropout rate of conv module, default 0.
         atten_dropout (float): Dropout rate of attention module, default 0.
         use_harmonic_emb (bool): Whether to use harmonic embedding, default False
+        use_pre_norm (bool): Whether to use pre norm, default False
     """
 
     def __init__(self,
@@ -42,6 +43,7 @@ class CFNaiveMelPE(nn.Module):
                  conv_dropout: float = 0.,
                  atten_dropout: float = 0.,
                  use_harmonic_emb: bool = False,
+                 use_pre_norm: bool = False,
                  ):
         super().__init__()
         self.input_channels = input_channels
@@ -76,7 +78,8 @@ class CFNaiveMelPE(nn.Module):
             use_norm=use_fa_norm,
             conv_only=conv_only,
             conv_dropout=conv_dropout,
-            atten_dropout=atten_dropout
+            atten_dropout=atten_dropout,
+            use_pre_norm=use_pre_norm,
         )
         # LayerNorm
         self.norm = nn.LayerNorm(hidden_dims)
@@ -234,7 +237,7 @@ class CFNaiveMelPE(nn.Module):
             loss = F.binary_cross_entropy(x, x_gt)
             loss_half = F.binary_cross_entropy(x_half, x_gt_half)
             loss_double = F.binary_cross_entropy(x_double, x_gt_double)
-            loss = loss + (loss_half + loss_double)/2
+            loss = loss + (loss_half + loss_double) / 2
             loss = loss * loss_scale
         else:
             x = self.forward(mel)  # [B,N,out_dim]
