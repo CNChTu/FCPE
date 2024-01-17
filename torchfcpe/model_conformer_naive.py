@@ -35,7 +35,6 @@ class ConformerNaiveEncoder(nn.Module):
                  conv_only: bool = False,
                  conv_dropout: float = 0.,
                  atten_dropout: float = 0.,
-                 use_pre_norm=False
                  ):
         super().__init__()
         self.num_layers = num_layers
@@ -47,7 +46,7 @@ class ConformerNaiveEncoder(nn.Module):
 
         self.encoder_layers = nn.ModuleList(
             [
-                CFNEncoderLayer(dim_model, num_heads, use_norm, conv_only, conv_dropout, atten_dropout, use_pre_norm)
+                CFNEncoderLayer(dim_model, num_heads, use_norm, conv_only, conv_dropout, atten_dropout)
                 for _ in range(num_layers)
             ]
         )
@@ -87,19 +86,17 @@ class CFNEncoderLayer(nn.Module):
                  conv_only: bool = False,
                  conv_dropout: float = 0.,
                  atten_dropout: float = 0.,
-                 use_pre_norm=False
                  ):
         super().__init__()
 
         if conv_dropout > 0.:
             self.conformer = nn.Sequential(
-                ConformerConvModule(dim_model, use_pre_norm=use_pre_norm),
+                ConformerConvModule(dim_model),
                 nn.Dropout(conv_dropout)
             )
         else:
             self.conformer = ConformerConvModule(dim_model)
         self.norm = nn.LayerNorm(dim_model)
-        self.use_pre_norm = use_pre_norm
 
         self.dropout = nn.Dropout(0.1)  # 废弃代码,仅做兼容性保留
 
@@ -122,11 +119,7 @@ class CFNEncoderLayer(nn.Module):
             torch.Tensor: Output tensor (#batch, length, dim_model)
         """
         if self.attn is not None:
-            if self.use_pre_norm:
-                x = self.norm(x) + x
-            else:
-                x = self.norm(x)
-            x = x + (self.attn(x, mask=mask))
+            x = x + (self.attn(self.norm(x), mask=mask))
 
         x = x + (self.conformer(x))
 
@@ -140,17 +133,13 @@ class ConformerConvModule(nn.Module):
             expansion_factor=2,
             kernel_size=31,
             dropout=0.,
-            use_pre_norm=False
     ):
         super().__init__()
 
         inner_dim = dim * expansion_factor
         padding = calc_same_padding(kernel_size)
 
-        if use_pre_norm:
-            _norm = PreNorm(dim)
-        else:
-            _norm = nn.LayerNorm(dim)
+        _norm = nn.LayerNorm(dim)
 
         self.net = nn.Sequential(
             _norm,
@@ -190,15 +179,6 @@ class Transpose(nn.Module):
 
     def forward(self, x):
         return x.transpose(*self.dims)
-
-
-class PreNorm(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-
-    def forward(self, x):
-        return self.norm(x) + x
 
 
 class SelfAttention(nn.Module):

@@ -43,7 +43,6 @@ class CFNaiveMelPE(nn.Module):
                  conv_dropout: float = 0.,
                  atten_dropout: float = 0.,
                  use_harmonic_emb: bool = False,
-                 use_pre_norm: bool = False,
                  ):
         super().__init__()
         self.input_channels = input_channels
@@ -79,7 +78,6 @@ class CFNaiveMelPE(nn.Module):
             conv_only=conv_only,
             conv_dropout=conv_dropout,
             atten_dropout=atten_dropout,
-            use_pre_norm=use_pre_norm,
         )
         # LayerNorm
         self.norm = nn.LayerNorm(hidden_dims)
