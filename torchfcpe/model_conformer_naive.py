@@ -8,6 +8,9 @@ from einops import rearrange, repeat
 from local_attention import LocalAttention
 import torch.nn.functional as F
 
+# From https://github.com/CNChTu/Diffusion-SVC/ by CNChTu
+# License: MIT
+
 
 class ConformerNaiveEncoder(nn.Module):
     """
@@ -121,6 +124,8 @@ class CFNEncoderLayer(nn.Module):
         if self.attn is not None:
             if self.use_pre_norm:
                 x = self.norm(x) + x
+            else:
+                x = self.norm(x)
             x = x + (self.attn(x, mask=mask))
 
         x = x + (self.conformer(x))
