@@ -16,6 +16,13 @@ def parse_args(args=None, namespace=None):
         type=str,
         required=True,
         help="path to the config file")
+    parser.add_argument(
+        "-j",
+        "--jump",
+        type=str,
+        required=False,
+        default=None,
+        help="jump cache for redis")
     return parser.parse_args(args=args, namespace=namespace)
 
 
@@ -53,6 +60,10 @@ if __name__ == '__main__':
                 state[k] = v.to(args.device)
 
     # datas
+    if (str(cmd.jump) == 'True') or (str(cmd.jump) == 'true'):
+        jump = True
+    else:
+        jump = False
     loader_train, loader_valid = get_data_loaders(args)
 
     # run

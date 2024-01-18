@@ -58,7 +58,7 @@ def traverse_dir(
     return file_list
 
 
-def get_data_loaders(args):
+def get_data_loaders(args, jump=False):
     wav2mel = torchfcpe.spawn_wav2mel(args, device='cpu')
     data_train = F0Dataset(
         path_root=args.data.train_path,
@@ -88,7 +88,8 @@ def get_data_loaders(args):
         f0_max=args.model.f0_max,
         f0_shift_mode='keyshift',
         load_data_num_processes=8,
-        use_redis=args.train.use_redis
+        use_redis=args.train.use_redis,
+        jump=jump
     )
     loader_train = torch.utils.data.DataLoader(
         data_train,
@@ -162,7 +163,8 @@ class F0Dataset(Dataset):
             load_data_num_processes=1,
             snb_noise=None,
             noise_beta=0,
-            use_redis=False
+            use_redis=False,
+            jump=False
     ):
         super().__init__()
         self.music_spk_id = 1
@@ -194,6 +196,7 @@ class F0Dataset(Dataset):
         self.snb_noise = snb_noise
         self.noise_beta = noise_beta
         self.use_redis = use_redis
+        self.jump = jump
 
         self.paths = traverse_dir(
             os.path.join(path_root, 'audio'),
@@ -292,7 +295,8 @@ class F0Dataset(Dataset):
                         else:
                             audio_music = int(0)
                         if self.use_redis:
-                            DATABUFFER[name_ext] = list((duration, f0, audio, audio_music))
+                            if not self.jump:
+                                DATABUFFER[name_ext] = list((duration, f0, audio, audio_music))
                         data_buffer = None
                     else:
                         data_buffer[name_ext] = (duration, f0, audio, audio_music)
