@@ -290,6 +290,13 @@ def spawn_model(args: DotDict) -> CFNaiveMelPE:
 
 def spawn_wav2mel(args: DotDict, device: str = None) -> Wav2Mel:
     """Spawn wav2mel"""
+    _type = args.mel.type
+    if (str(_type).lower() == 'none') or (str(_type).lower() == 'default'):
+        _type = 'default'
+    elif str(_type).lower() == 'stft':
+        _type = 'stft'
+    else:
+        raise ValueError(f'  [ERROR] torchfcpe.tools.args.spawn_wav2mel: {_type} is not a supported args.mel.type')
     wav2mel = Wav2Mel(
         sr=catch_none_args_opti(
             args.mel.sr,
@@ -340,6 +347,7 @@ def spawn_wav2mel(args: DotDict, device: str = None) -> Wav2Mel:
             func_name='torchfcpe.tools.spawn_wav2mel',
             warning_str='.device is None',
         ),
+        mel_type=_type,
     )
     return wav2mel
 

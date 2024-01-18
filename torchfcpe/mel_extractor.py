@@ -42,7 +42,9 @@ class MelExtractor:
                  hop_length: int,
                  fmin: float = None,
                  fmax: float = None,
-                 clip_val: float = 1e-5):
+                 clip_val: float = 1e-5,
+                 out_stft: bool = False,
+                 ):
         if fmin is None:
             fmin = 0
         if fmax is None:
@@ -57,6 +59,7 @@ class MelExtractor:
         self.clip_val = clip_val
         self.mel_basis = {}
         self.hann_window = {}
+        self.out_stft = out_stft
 
     @torch.no_grad()
     def __call__(self,
@@ -106,7 +109,7 @@ class MelExtractor:
             print('max value is ', torch.max(y))
 
         mel_basis_key = str(fmax) + '_' + str(y.device)
-        if mel_basis_key not in mel_basis:
+        if (mel_basis_key not in mel_basis) and (not self.out_stft):
             mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax)
             mel_basis[mel_basis_key] = torch.from_numpy(mel).float().to(y.device)
 
@@ -133,7 +136,10 @@ class MelExtractor:
             if resize < size:
                 spec = F.pad(spec, (0, 0, 0, size - resize))
             spec = spec[:, :size, :] * win_size / win_size_new
-        spec = torch.matmul(mel_basis[mel_basis_key], spec)
+        if self.out_stft:
+            spec = spec[:, :512, :]
+        else:
+            spec = torch.matmul(mel_basis[mel_basis_key], spec)
         spec = dynamic_range_compression_torch(spec, clip_val=clip_val)
         spec = spec.transpose(-1, -2)
         return spec  # (B, T, n_mels)
@@ -168,7 +174,9 @@ class Wav2Mel:
                  fmin: float = None,
                  fmax: float = None,
                  clip_val: float = 1e-5,
-                 device='cpu'):
+                 device='cpu',
+                 mel_type="default",
+                 ):
         # catch None
         if fmin is None:
             fmin = 0
@@ -185,7 +193,13 @@ class Wav2Mel:
         self.clip_val = clip_val
         self.device = device
         self.resample_kernel = {}
-        self.mel_extractor = MelExtractor(sr, n_mels, n_fft, win_size, hop_length, fmin, fmax, clip_val)
+        if mel_type == "default":
+            self.mel_extractor = MelExtractor(sr, n_mels, n_fft, win_size, hop_length, fmin, fmax, clip_val,
+                                              out_stft=False)
+        elif mel_type == "stft":
+            self.mel_extractor = MelExtractor(sr, n_mels, n_fft, win_size, hop_length, fmin, fmax, clip_val,
+                                              out_stft=True)
+        self.mel_type = mel_type
 
     def device(self):
         """Get device"""
