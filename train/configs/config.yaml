@@ -5,8 +5,9 @@ data:
   extensions: # List of extension included in the data collection
     - wav
 mel:
+  type: 'stft' # use "none" or "default" to use default
   sr: 16000
-  num_mels: 128
+  num_mels: 512 # if stft need to match others
   n_fft: 1024
   win_size: 1024
   hop_size: 160
@@ -24,12 +25,12 @@ model:
   conv_only: true
   conv_dropout: 0.0
   atten_dropout: 0.0
-  use_harmonic_emb: true
+  use_harmonic_emb: false
 loss:
   loss_scale: 10
 device: cuda
 env:
-  expdir: exp/yx2_001ach
+  expdir: exp/yx2_001ac_stft
   gpu_id: 0
 train:
   aug_add_music: true
@@ -47,7 +48,7 @@ train:
   aug_mask_iszeropad_mode: 'noise' # randon zero or noise
   aug_mask_block_num: 1
   aug_mask_block_num_v_o: 1
-  num_workers: 16 # If your cpu and gpu are both very strong, set to 0 may be faster!
+  num_workers: 14 # If your cpu and gpu are both very strong, set to 0 may be faster!
   amp_dtype: fp32 # only can ues fp32, else nan
   batch_size: 128
   use_redis: true
