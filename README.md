@@ -27,6 +27,17 @@ audio = torch.from_numpy(audio).float().unsqueeze(0).unsqueeze(-1).to(device)
 model = spawn_bundled_infer_model(device=device)
 
 # infer
+'''
+audio: wav, torch.Tensor
+sr: sample rate
+decoder_mode: [Optional] 'local_argmax' is recommended
+threshold: [Optional] threshold for V/UV decision, 0.006 is recommended
+f0_min: [Optional] minimum f0
+f0_max: [Optional] maximum f0
+interp_uv: [Optional] whether to interpolate unvoiced frames
+output_interp_target_length: [Optional] If not None, the output f0 will be
+    interpolated to the target length
+'''
 f0 = model.infer(
     audio,
     sr=sr,
@@ -39,5 +50,12 @@ f0 = model.infer(
 )
 
 print(f0)
+
+# the model is son class of torch.nn.Module, so you can use it as a normal pytorch model
+# example: change device
+model = model.to(device)
+# example: compile model
+model = torch.compile(model)
+
 ```
 

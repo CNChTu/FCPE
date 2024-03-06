@@ -8,7 +8,7 @@ with open('README.md', encoding='utf8') as file:
 setup(
     name='torchfcpe',
     description='The official Pytorch implementation of Fast Context-based Pitch Estimation (FCPE)',
-    version='0.0.3',
+    version='0.0.4',
     author='CNChTu',
     author_email='2921046558@qq.com',
     url='https://github.com/CNChTu/FCPE',
