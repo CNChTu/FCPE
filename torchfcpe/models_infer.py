@@ -18,9 +18,11 @@ from .torch_interp import batch_interp_with_replacement_detach
 def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
     # convert f0 to note
     note_list = []
-    for f0, key_shift in zip(f0_list, key_shift_list):
+    for idx, (f0, key_shift) in enumerate(zip(f0_list, key_shift_list)):
+        f0 = f0 / (2 ** (key_shift / 12))
+        f0_list[idx] = f0
         f0 = f0 + (f0 == 0) * 1e-6
-        note = torch.log2(f0 / 440) * 12 + 69 - key_shift
+        note = torch.log2(f0 / 440) * 12 + 69
         note[note < 0] = 0
         note_list.append(note)
 
@@ -63,15 +65,14 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
                 dp[:, t, c] = min_value
                 backtrack[:, t, c] = min_indices
     # backtrack
-    t = notes.size(1) - 1
-    note_result = torch.zeros_like(notes[:, :, 0])
+    f0s = torch.cat(f0_list, dim=-1)  # (B, T, len(f0_list))
+    t = f0s.size(1) - 1
+    f0_result = torch.zeros_like(f0s[:, :, 0])
     min_indices = torch.argmin(dp[:, t, :], dim=-1)
     for i in range(0, t + 1):
-        note_result[:, t - i] = notes[:, t - i, min_indices]
+        f0_result[:, t - i] = f0s[:, t - i, min_indices]
         min_indices = backtrack[:, t - i, min_indices]
 
-    # convert note to f0
-    f0_result = 440 * torch.pow(2, (note_result - 69) / 12)
     return f0_result.unsqueeze(-1)
 
 
