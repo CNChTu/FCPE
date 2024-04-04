@@ -26,9 +26,9 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
 
     # select best note
     # 使用动态规划选择最优的音高
-    # 惩罚1：uv的惩罚固定为超参数uv_penalty
+    # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2
     # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外）
-    uv_penalty = tta_uv_penalty
+    uv_penalty = tta_uv_penalty**2
 
     notes = torch.cat(note_list, dim=-1)  # (B, T, len(f0_list))
     dp = torch.zeros_like(notes)  # (B, T, len(f0_list))
@@ -127,7 +127,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
         output_interp_target_length: int = None,
         retur_uv: bool = False,
         test_time_augmentation: bool = False,
-        tta_uv_penalty: float = 3.0,
+        tta_uv_penalty: float = 12.0,
         tta_key_shifts: list = [0, 12, -12],
     ) -> torch.Tensor or (torch.Tensor, torch.Tensor):
         """Infer
@@ -142,7 +142,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
             output_interp_target_length (int): Output interpolation target length. Default: None.
             retur_uv (bool): Return unvoiced frames. Default: False.
             test_time_augmentation (bool): Test time augmentation. If enabled, the output may be better but slower. Default: False.
-            tta_uv_penalty (float): Test time augmentation unvoiced penalty. Default: 3.0.
+            tta_uv_penalty (float): Test time augmentation unvoiced penalty. Default: 12.0.
             tta_key_shifts (list): Test time augmentation key shifts. Default: [0, 12, -12].
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1) or output_interp_target_length, 1).
             if return_uv is True, return f0, uv. the shape of uv(torch.Tensor) is like f0.
