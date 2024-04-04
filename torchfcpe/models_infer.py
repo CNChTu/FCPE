@@ -28,8 +28,8 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
 
     # select best note
     # 使用动态规划选择最优的音高
-    # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2
-    # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外）
+    # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2，v转uv时额外惩罚一次
+    # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外），距离小于0.5时忽略不计
     uv_penalty = tta_uv_penalty**2
 
     notes = torch.cat(note_list, dim=-1)  # (B, T, len(f0_list))
@@ -46,7 +46,9 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
             # 情况1：当前帧选择c，是uv
             # 只需要处理uv的惩罚
             if notes[:, t, c] <= 0:
-                min_value, min_indices = torch.min(dp[:, t - 1, :] + uv_penalty, dim=-1)
+                min_value, min_indices = torch.min(
+                    dp[:, t - 1, :] + (1 + notes[:, t - 1, :] > 0) * uv_penalty, dim=-1
+                )
                 dp[:, t, c] = min_value
                 backtrack[:, t, c] = min_indices
                 continue
@@ -58,7 +60,9 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
             if torch.any(is_voiced):
                 l2_distance = (
                     torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced
+                    - 0.5
                 )
+                l2_distance *= l2_distance > 0
                 min_value, min_indices = torch.min(
                     dp[:, t - 1, :] + l2_distance, dim=-1
                 )
@@ -129,7 +133,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
         retur_uv: bool = False,
         test_time_augmentation: bool = False,
         tta_uv_penalty: float = 12.0,
-        tta_key_shifts: list = [0, 12, -12],
+        tta_key_shifts: list = [0, -12, 12],
     ) -> torch.Tensor or (torch.Tensor, torch.Tensor):
         """Infer
         Args:
@@ -144,13 +148,14 @@ class InferCFNaiveMelPE(torch.nn.Module):
             retur_uv (bool): Return unvoiced frames. Default: False.
             test_time_augmentation (bool): Test time augmentation. If enabled, the output may be better but slower. Default: False.
             tta_uv_penalty (float): Test time augmentation unvoiced penalty. Default: 12.0.
-            tta_key_shifts (list): Test time augmentation key shifts. Default: [0, 12, -12].
+            tta_key_shifts (list): Test time augmentation key shifts. Default: [0, -12, 12].
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1) or output_interp_target_length, 1).
             if return_uv is True, return f0, uv. the shape of uv(torch.Tensor) is like f0.
         """
         # infer
         if test_time_augmentation:
             assert len(tta_key_shifts) > 0
+            tta_key_shifts.sort(key=lambda x: (x if x >= 0 else -x / 2))
             f0 = ensemble_f0(
                 [
                     self.__call__(wav, sr, decoder_mode, threshold, key_shift)
