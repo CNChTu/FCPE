@@ -134,6 +134,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
         test_time_augmentation: bool = False,
         tta_uv_penalty: float = 12.0,
         tta_key_shifts: list = [0, -12, 12],
+        tta_use_origin_uv=False,
     ) -> torch.Tensor or (torch.Tensor, torch.Tensor):
         """Infer
         Args:
@@ -149,6 +150,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
             test_time_augmentation (bool): Test time augmentation. If enabled, the output may be better but slower. Default: False.
             tta_uv_penalty (float): Test time augmentation unvoiced penalty. Default: 12.0.
             tta_key_shifts (list): Test time augmentation key shifts. Default: [0, -12, 12].
+            tta_use_origin_uv (bool): Use origin uv. Default: False
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1) or output_interp_target_length, 1).
             if return_uv is True, return f0, uv. the shape of uv(torch.Tensor) is like f0.
         """
@@ -156,19 +158,28 @@ class InferCFNaiveMelPE(torch.nn.Module):
         if test_time_augmentation:
             assert len(tta_key_shifts) > 0
             tta_key_shifts.sort(key=lambda x: (x if x >= 0 else -x / 2))
+            f0_list = [
+                self.__call__(wav, sr, decoder_mode, threshold, key_shift)
+                for key_shift in tta_key_shifts
+            ]
             f0 = ensemble_f0(
-                [
-                    self.__call__(wav, sr, decoder_mode, threshold, key_shift)
-                    for key_shift in tta_key_shifts
-                ],
+                f0_list,
                 tta_key_shifts,
                 tta_uv_penalty,
             )
         else:
             f0 = self.__call__(wav, sr, decoder_mode, threshold)
+        if test_time_augmentation and tta_use_origin_uv:
+            if tta_key_shifts[0] == 0:
+                f0_for_uv = f0_list[0]
+            else:
+                f0_for_uv = self.__call__(wav, sr, decoder_mode, threshold, 0)
+        else:
+            f0_for_uv = f0
         if f0_min is None:
             f0_min = self.args_dict["model"]["f0_min"]
-        uv = (f0 < f0_min).type(f0.dtype)
+        uv = (f0_for_uv < f0_min).type(f0_for_uv.dtype)
+        f0 = f0 * (1 - uv)
         # interp
         if interp_uv:
             f0 = batch_interp_with_replacement_detach(
