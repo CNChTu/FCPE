@@ -28,7 +28,7 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
 
     # select best note
     # 使用动态规划选择最优的音高
-    # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2，v转uv时额外惩罚一次
+    # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2，v转为uv时额外惩罚两次
     # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外），距离小于0.5时忽略不计
     uv_penalty = tta_uv_penalty**2
 
@@ -47,7 +47,8 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
             # 只需要处理uv的惩罚
             if notes[:, t, c] <= 0:
                 min_value, min_indices = torch.min(
-                    dp[:, t - 1, :] + (1 + notes[:, t - 1, :] > 0) * uv_penalty, dim=-1
+                    dp[:, t - 1, :] + 1 * uv_penalty,
+                    dim=-1,
                 )
                 dp[:, t, c] = min_value
                 backtrack[:, t, c] = min_indices
@@ -57,17 +58,16 @@ def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
             # 首先判断上一个帧是不是v
             is_voiced = notes[:, t - 1, :] > 0
             # 是的话，计算L2距离，不是的话，距离为0
-            if torch.any(is_voiced):
-                l2_distance = (
-                    torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced
-                    - 0.5
-                )
-                l2_distance *= l2_distance > 0
-                min_value, min_indices = torch.min(
-                    dp[:, t - 1, :] + l2_distance, dim=-1
-                )
-                dp[:, t, c] = min_value
-                backtrack[:, t, c] = min_indices
+            l2_distance = (
+                torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced - 0.5
+            )
+            l2_distance *= l2_distance > 0
+            min_value, min_indices = torch.min(
+                dp[:, t - 1, :] + l2_distance + (~is_voiced) * uv_penalty * 2,
+                dim=-1,
+            )
+            dp[:, t, c] = min_value
+            backtrack[:, t, c] = min_indices
     # backtrack
     f0s = torch.cat(f0_list, dim=-1)  # (B, T, len(f0_list))
     t = f0s.size(1) - 1
