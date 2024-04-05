@@ -2,6 +2,7 @@ import json
 import pathlib
 
 import torch
+from einops import rearrange
 
 from .models import CFNaiveMelPE
 from .tools import (
@@ -15,63 +16,80 @@ from .tools import (
 from .torch_interp import batch_interp_with_replacement_detach
 
 
-def ensemble_f0(f0_list, key_shift_list, tta_uv_penalty):
+def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
+    """_summary_
+
+    Args:
+        f0s (torch.Tensor): (B, T, len(key_shift_list))
+        key_shift_list (list): list of key shifts
+        tta_uv_penalty (float,int): uv penalty
+
+    Returns:
+        f0: (B, T, 1)
+    """
+    device = f0s.device
     # convert f0 to note
-    note_list = []
-    for idx, (f0, key_shift) in enumerate(zip(f0_list, key_shift_list)):
-        f0 = f0 / (2 ** (key_shift / 12))
-        f0_list[idx] = f0
-        f0 = f0 + (f0 == 0) * 1e-6
-        note = torch.log2(f0 / 440) * 12 + 69
-        note[note < 0] = 0
-        note_list.append(note)
+    f0s = f0s / (
+        torch.pow(
+            2,
+            torch.tensor(key_shift_list, device=device)
+            .to(device)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            / 12,
+        )
+    )
+    notes = torch.log2(f0s / 440) * 12 + 69
+    notes[notes < 0] = 0
 
     # select best note
     # 使用动态规划选择最优的音高
     # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2，v转为uv时额外惩罚两次
     # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外），距离小于0.5时忽略不计
     uv_penalty = tta_uv_penalty**2
-
-    notes = torch.cat(note_list, dim=-1)  # (B, T, len(f0_list))
-    dp = torch.zeros_like(notes)  # (B, T, len(f0_list))
+    dp = torch.zeros_like(notes, device=device)
     # dp[b,t,c]表示，对于样本b，0到第t帧的所有选择中，选择第c个f0作为第t帧的结尾的最小惩罚
-    backtrack = torch.zeros_like(notes, dtype=torch.int64)  # (B, T, len(f0_list))
+    backtrack = torch.zeros_like(notes, device=device).long()
     # backtrack[b,t,c]表示，对于样本b，0到第t帧的所有选择中，选择第c个f0作为第t帧的结尾时，t-1帧结尾的选择，值域为0到len(f0_list)-1
     # init
     dp[:, 0, :] = (notes[:, 0, :] <= 0) * uv_penalty
     # forward
     for t in range(1, notes.size(1)):
-        # 计算第t帧选择c的最小惩罚
-        for c in range(notes.size(2)):
-            # 情况1：当前帧选择c，是uv
-            # 只需要处理uv的惩罚
-            if notes[:, t, c] <= 0:
-                min_value, min_indices = torch.min(
-                    dp[:, t - 1, :] + 1 * uv_penalty,
-                    dim=-1,
-                )
-                dp[:, t, c] = min_value
-                backtrack[:, t, c] = min_indices
-                continue
+        penalty = torch.zeros(
+            [notes.size(0), notes.size(2), notes.size(2)], device=device
+        )
+        # [b,c1,c2]表示第b个样本中，t-1帧选择c1，t帧选择c2的惩罚
 
-            # 情况2：当前帧选择c，是v
-            # 首先判断上一个帧是不是v
-            is_voiced = notes[:, t - 1, :] > 0
-            # 是的话，计算L2距离，不是的话，距离为0
-            l2_distance = (
-                torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced - 0.5
-            )
-            l2_distance *= l2_distance > 0
-            min_value, min_indices = torch.min(
-                dp[:, t - 1, :] + l2_distance + (~is_voiced) * uv_penalty * 2,
-                dim=-1,
-            )
-            dp[:, t, c] = min_value
-            backtrack[:, t, c] = min_indices
+        # t帧是uv的情况
+        t_uv = notes[:, t, :] <= 0
+        penalty += uv_penalty * t_uv.unsqueeze(1)
+
+        # t帧是v的情况
+        # t-1帧也是v的情况
+        t1_uv = notes[:, t - 1, :] <= 0
+        l2 = torch.pow(
+            (notes[:, t - 1, :].unsqueeze(-1) - notes[:, t, :].unsqueeze(1))
+            * (~t1_uv).unsqueeze(-1)
+            * (~t_uv).unsqueeze(1),
+            2,
+        )
+        l2 = l2 - 0.5
+        l2 = l2 * (l2 > 0)
+        penalty += l2
+
+        # t-1帧是uv的情况，uv转v的惩罚
+        penalty += t1_uv.unsqueeze(-1) * (~t_uv).unsqueeze(1) * uv_penalty * 2
+
+        # 选择最小惩罚
+        min_value, min_indices = torch.min(
+            dp[:, t - 1, :].unsqueeze(-1) + penalty, dim=1
+        )
+        dp[:, t, :] = min_value
+        backtrack[:, t, :] = min_indices
+
     # backtrack
-    f0s = torch.cat(f0_list, dim=-1)  # (B, T, len(f0_list))
     t = f0s.size(1) - 1
-    f0_result = torch.zeros_like(f0s[:, :, 0])
+    f0_result = torch.zeros_like(f0s[:, :, 0], device=device)
     min_indices = torch.argmin(dp[:, t, :], dim=-1)
     for i in range(0, t + 1):
         f0_result[:, t - i] = f0s[:, t - i, min_indices]
@@ -104,7 +122,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
         sr: [int, float],
         decoder_mode: str = "local_argmax",
         threshold: float = 0.006,
-        keyshift: [int, float] = 0,
+        key_shifts: list = [0],
     ) -> torch.Tensor:
         """Infer
         Args:
@@ -112,13 +130,19 @@ class InferCFNaiveMelPE(torch.nn.Module):
             sr (int, float): Input wav sample rate.
             decoder_mode (str): Decoder type. Default: "local_argmax", support "argmax" or "local_argmax".
             threshold (float): Threshold to mask. Default: 0.006.
+            key_shifts (list): Key shifts. Default: [0].
         return: f0 (torch.Tensor): f0 Hz, shape (B, (n_sample//hop_size + 1), 1).
         """
         with torch.no_grad():
             wav = wav.to(self.tensor_device_marker.device)
-            mel = self.wav2mel(wav, sr, keyshift=keyshift)
-            f0 = self.model.infer(mel, decoder=decoder_mode, threshold=threshold)
-        return f0  # (B, T, 1)
+            mels = torch.stack(
+                [self.wav2mel(wav, sr, keyshift=keyshift) for keyshift in key_shifts],
+                -1,
+            )
+            mels = rearrange(mels, "B T C K -> (B K) T C")
+            f0s = self.model.infer(mels, decoder=decoder_mode, threshold=threshold)
+            f0s = rearrange(f0s, "(B K) T 1 -> B T (K 1)", K=len(key_shifts))
+        return f0s  # (B, T, len(key_shifts))
 
     def infer(
         self,
@@ -157,24 +181,24 @@ class InferCFNaiveMelPE(torch.nn.Module):
         # infer
         if test_time_augmentation:
             assert len(tta_key_shifts) > 0
+            flag = 0
+            if tta_use_origin_uv:
+                if 0 not in tta_key_shifts:
+                    flag = 1
+                    tta_key_shifts.append(0)
             tta_key_shifts.sort(key=lambda x: (x if x >= 0 else -x / 2))
-            f0_list = [
-                self.__call__(wav, sr, decoder_mode, threshold, key_shift)
-                for key_shift in tta_key_shifts
-            ]
+            f0s = self.__call__(wav, sr, decoder_mode, threshold, tta_key_shifts)
             f0 = ensemble_f0(
-                f0_list,
-                tta_key_shifts,
+                f0s[:, :, flag:],
+                tta_key_shifts[flag:],
                 tta_uv_penalty,
             )
+            if tta_use_origin_uv:
+                f0_for_uv = f0s[:, :, [0]]
+            else:
+                f0_for_uv = f0
         else:
             f0 = self.__call__(wav, sr, decoder_mode, threshold)
-        if test_time_augmentation and tta_use_origin_uv:
-            if tta_key_shifts[0] == 0:
-                f0_for_uv = f0_list[0]
-            else:
-                f0_for_uv = self.__call__(wav, sr, decoder_mode, threshold, 0)
-        else:
             f0_for_uv = f0
         if f0_min is None:
             f0_min = self.args_dict["model"]["f0_min"]
