@@ -47,34 +47,37 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
     dp[:, 0, :] = (notes[:, 0, :] <= 0) * uv_penalty
     # forward
     for t in range(1, notes.size(1)):
-        # 计算第t帧选择c的最小惩罚
-        for c in range(notes.size(2)):
-            penalty = torch.zeros_like(dp[:, t - 1, :])
-            if notes[:, t, c] <= 0:
-                # 情况1：当前帧如果选择c，且c是uv
-                # 只需要处理uv的惩罚
-                penalty += uv_penalty
-            else:
-                # 情况2：当前帧如果选择c，且c是v
-                # 首先判断上一个帧是不是v
-                is_voiced = notes[:, t - 1, :] > 0
-                # 是的话，计算L2距离，不是的话，距离为0
-                l2_distance = (
-                    torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced
-                    - 0.5
-                )
-                l2_distance *= l2_distance > 0
-                penalty += l2_distance
-                # uv转v的惩罚
-                penalty += (~is_voiced) * uv_penalty * 2
+        penalty = torch.zeros(
+            [notes.size(0), notes.size(2), notes.size(2)], device=notes.device
+        )  # [b,c1,c2]表示第b个样本中，t-1帧选择c1，t帧选择c2的惩罚
 
-            # 选择最小的惩罚
-            min_value, min_indices = torch.min(
-                dp[:, t - 1, :] + penalty,
-                dim=-1,
-            )
-            dp[:, t, c] = min_value
-            backtrack[:, t, c] = min_indices
+        # t帧是uv的情况
+        t_uv = notes[:, t, :] <= 0
+        penalty += uv_penalty * t_uv.unsqueeze(1)
+
+        # t帧是v的情况
+        # t-1帧也是v的情况
+        t1_uv = notes[:, t - 1, :] <= 0
+        l2 = torch.pow(
+            (notes[:, t - 1, :].unsqueeze(-1) - notes[:, t, :].unsqueeze(1))
+            * (~t1_uv).unsqueeze(-1)
+            * (~t_uv).unsqueeze(1),
+            2,
+        )
+        l2 = l2 - 0.5
+        l2 = l2 * (l2 > 0)
+        penalty += l2
+
+        # t-1帧是uv的情况，uv转v的惩罚
+        penalty += t1_uv.unsqueeze(-1) * (~t_uv).unsqueeze(1) * uv_penalty * 2
+
+        # 选择最小惩罚
+        min_value, min_indices = torch.min(
+            dp[:, t - 1, :].unsqueeze(-1) + penalty, dim=1
+        )
+        dp[:, t, :] = min_value
+        backtrack[:, t, :] = min_indices
+
     # backtrack
     t = f0s.size(1) - 1
     f0_result = torch.zeros_like(f0s[:, :, 0])
