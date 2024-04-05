@@ -27,10 +27,18 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
     Returns:
         f0: (B, T, 1)
     """
+    device = f0s.device
     # convert f0 to note
-    f0s = f0s / (torch.pow(2, torch.tensor(key_shift_list) / 12)).unsqueeze(
-        0
-    ).unsqueeze(0)
+    f0s = f0s / (
+        torch.pow(
+            2,
+            torch.tensor(key_shift_list, device=device)
+            .to(device)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            / 12,
+        )
+    )
     notes = torch.log2(f0s / 440) * 12 + 69
     notes[notes < 0] = 0
 
@@ -39,17 +47,18 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
     # 惩罚1：uv的惩罚固定为超参数uv_penalty ** 2，v转为uv时额外惩罚两次
     # 惩罚2：相邻帧音高的L2距离（uv和v互转的过程除外），距离小于0.5时忽略不计
     uv_penalty = tta_uv_penalty**2
-    dp = torch.zeros_like(notes)
+    dp = torch.zeros_like(notes, device=device)
     # dp[b,t,c]表示，对于样本b，0到第t帧的所有选择中，选择第c个f0作为第t帧的结尾的最小惩罚
-    backtrack = torch.zeros_like(notes, dtype=torch.int64)
+    backtrack = torch.zeros_like(notes, device=device).long()
     # backtrack[b,t,c]表示，对于样本b，0到第t帧的所有选择中，选择第c个f0作为第t帧的结尾时，t-1帧结尾的选择，值域为0到len(f0_list)-1
     # init
     dp[:, 0, :] = (notes[:, 0, :] <= 0) * uv_penalty
     # forward
     for t in range(1, notes.size(1)):
         penalty = torch.zeros(
-            [notes.size(0), notes.size(2), notes.size(2)], device=notes.device
-        )  # [b,c1,c2]表示第b个样本中，t-1帧选择c1，t帧选择c2的惩罚
+            [notes.size(0), notes.size(2), notes.size(2)], device=device
+        )
+        # [b,c1,c2]表示第b个样本中，t-1帧选择c1，t帧选择c2的惩罚
 
         # t帧是uv的情况
         t_uv = notes[:, t, :] <= 0
@@ -80,7 +89,7 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
 
     # backtrack
     t = f0s.size(1) - 1
-    f0_result = torch.zeros_like(f0s[:, :, 0])
+    f0_result = torch.zeros_like(f0s[:, :, 0], device=device)
     min_indices = torch.argmin(dp[:, t, :], dim=-1)
     for i in range(0, t + 1):
         f0_result[:, t - i] = f0s[:, t - i, min_indices]
