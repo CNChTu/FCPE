@@ -49,27 +49,28 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
     for t in range(1, notes.size(1)):
         # 计算第t帧选择c的最小惩罚
         for c in range(notes.size(2)):
-            # 情况1：当前帧选择c，是uv
-            # 只需要处理uv的惩罚
+            penalty = torch.zeros_like(dp[:, t - 1, :])
             if notes[:, t, c] <= 0:
-                min_value, min_indices = torch.min(
-                    dp[:, t - 1, :] + 1 * uv_penalty,
-                    dim=-1,
+                # 情况1：当前帧如果选择c，且c是uv
+                # 只需要处理uv的惩罚
+                penalty += uv_penalty
+            else:
+                # 情况2：当前帧如果选择c，且c是v
+                # 首先判断上一个帧是不是v
+                is_voiced = notes[:, t - 1, :] > 0
+                # 是的话，计算L2距离，不是的话，距离为0
+                l2_distance = (
+                    torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced
+                    - 0.5
                 )
-                dp[:, t, c] = min_value
-                backtrack[:, t, c] = min_indices
-                continue
+                l2_distance *= l2_distance > 0
+                penalty += l2_distance
+                # uv转v的惩罚
+                penalty += (~is_voiced) * uv_penalty * 2
 
-            # 情况2：当前帧选择c，是v
-            # 首先判断上一个帧是不是v
-            is_voiced = notes[:, t - 1, :] > 0
-            # 是的话，计算L2距离，不是的话，距离为0
-            l2_distance = (
-                torch.pow((notes[:, t - 1, :] - notes[:, t, c]), 2) * is_voiced - 0.5
-            )
-            l2_distance *= l2_distance > 0
+            # 选择最小的惩罚
             min_value, min_indices = torch.min(
-                dp[:, t - 1, :] + l2_distance + (~is_voiced) * uv_penalty * 2,
+                dp[:, t - 1, :] + penalty,
                 dim=-1,
             )
             dp[:, t, c] = min_value
