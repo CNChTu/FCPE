@@ -154,7 +154,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
         f0_max: float = None,
         interp_uv: bool = False,
         output_interp_target_length: int = None,
-        retur_uv: bool = False,
+        return_uv: bool = False,
         test_time_augmentation: bool = False,
         tta_uv_penalty: float = 12.0,
         tta_key_shifts: list = [0, -12, 12],
@@ -170,7 +170,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
             f0_max (float): Maximum f0. Default: None. Use in post-processing.
             interp_uv (bool): Interpolate unvoiced frames. Default: False.
             output_interp_target_length (int): Output interpolation target length. Default: None.
-            retur_uv (bool): Return unvoiced frames. Default: False.
+            return_uv (bool): Return unvoiced frames. Default: False.
             test_time_augmentation (bool): Test time augmentation. If enabled, the output may be better but slower. Default: False.
             tta_uv_penalty (float): Test time augmentation unvoiced penalty. Default: 12.0.
             tta_key_shifts (list): Test time augmentation key shifts. Default: [0, -12, 12].
@@ -218,7 +218,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
                 mode="nearest",
             ).transpose(1, 2)
         # if return_uv is True, interp and return uv
-        if retur_uv:
+        if return_uv:
             uv = torch.nn.functional.interpolate(
                 uv.transpose(1, 2),
                 size=int(output_interp_target_length),
