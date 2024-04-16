@@ -3,7 +3,7 @@ import pathlib
 
 import torch
 from einops import rearrange
-
+from f02midi.transpose import f02midi
 from .models import CFNaiveMelPE
 from .tools import (
     DotDict,
@@ -227,6 +227,29 @@ class InferCFNaiveMelPE(torch.nn.Module):
             return f0, uv
         else:
             return f0
+
+    def extact_midi(
+        self,
+        wav: torch.Tensor,
+        sr: [int, float],
+        output_path: str,
+        decoder_mode: str = "local_argmax",
+        threshold: float = 0.006,
+        f0_min: float = None,
+        f0_max: float = None,
+        tempo: float = None,
+    ):
+        f0 = self.infer(
+            wav,
+            sr,
+            decoder_mode,
+            threshold,
+            f0_min,
+            f0_max,
+        )
+        f0 = f0.squeeze(-1).squeeze(0).cpu().numpy()
+        return f02midi(f0, tempo=tempo, output_path=output_path, sr=sr, y=wav.squeeze(0).cpu().numpy())
+
 
     def get_hop_size(self) -> int:
         """Get hop size"""
