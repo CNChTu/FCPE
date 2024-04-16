@@ -3,10 +3,10 @@
 import argparse
 import numpy as np
 from pathlib import Path
-from featureExtraction import *
-from quantization import *
-from utils import *
-from MIDI import *
+from .featureExtraction import *
+from .quantization import *
+from .utils import *
+from .MIDI import *
 import librosa
 
 def f0_to_note(f0):
@@ -24,8 +24,8 @@ def f02midi(f0, tempo = None, y = None, sr = None, output_path = None):
     if tempo is None:
         if y is not None:
             target_sr = 22050
-            y = librosa.resample(y, sr, target_sr)
-            onset_strength = librosa.onset.onset_strength(y, sr=target_sr)
+            y = librosa.resample(y = y, orig_sr = sr, target_sr = target_sr)
+            onset_strength = librosa.onset.onset_strength(y = y, sr=target_sr)
             tempo = librosa.beat.tempo(onset_envelope=onset_strength, sr=target_sr)
         else:
             tempo = 120

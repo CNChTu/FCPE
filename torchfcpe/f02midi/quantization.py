@@ -5,8 +5,8 @@ import librosa.display
 
 from scipy.signal import medfilt
 from matplotlib import pyplot as plt
-from featureExtraction import read_audio
-from utils import *
+from .featureExtraction import read_audio
+from .utils import *
 
 
 # %%

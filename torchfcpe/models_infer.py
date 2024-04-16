@@ -3,7 +3,7 @@ import pathlib
 
 import torch
 from einops import rearrange
-from f02midi.transpose import f02midi
+from torchfcpe.f02midi.transpose import f02midi
 from .models import CFNaiveMelPE
 from .tools import (
     DotDict,
@@ -248,7 +248,8 @@ class InferCFNaiveMelPE(torch.nn.Module):
             f0_max,
         )
         f0 = f0.squeeze(-1).squeeze(0).cpu().numpy()
-        return f02midi(f0, tempo=tempo, output_path=output_path, sr=sr, y=wav.squeeze(0).cpu().numpy())
+        wav = wav.squeeze(0).squeeze(-1).cpu().numpy()
+        return f02midi(f0, tempo=tempo, output_path=output_path, sr=sr, y=wav)
 
 
     def get_hop_size(self) -> int:
