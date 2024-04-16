@@ -51,6 +51,31 @@ f0 = model.infer(
 
 print(f0)
 
+''' MIDI Extract '''
+'''
+audio: wav, torch.Tensor
+sr: sample rate
+decoder_mode: [Optional] 'local_argmax' is recommended
+threshold: [Optional] threshold for V/UV decision, 0.006 is recommended
+f0_min: [Optional] minimum f0
+f0_max: [Optional] maximum f0
+output_path: [Optional] If input, save midi; otherwise, only return midi structure
+tempo: [Optional] BPM, if None, Automatic prediction of bpm
+'''
+
+midi = model.extact_midi(
+    audio,
+    sr=sr,
+    decoder_mode='local_argmax',
+    threshold=0.006,
+    f0_min=80,
+    f0_max=880,
+    output_path="test.mid"
+)
+
+print(midi)
+
+
 # the model is son class of torch.nn.Module, so you can use it as a normal pytorch model
 # example: change device
 model = model.to(device)
