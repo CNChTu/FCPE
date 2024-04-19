@@ -11,7 +11,7 @@ import librosa
 
 def f0_to_note(f0):
     """ convert frame-level pitch score(hz) to note-level (time-axis) """
-    note = 69 + 12 * np.log2(f0 / 440)
+    note = 69 + 12 * np.log2(f0 / 440 + 1e-4)
     note = np.round(note)
     note = note.astype(int)
     note[note < 0] = 0
