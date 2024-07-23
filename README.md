@@ -9,7 +9,7 @@ TorchFCPE is a PyTorch-based library designed for audio pitch extraction and MID
 Before using the library, make sure you have the necessary dependencies installed:
 
 ```bash
-pip install torch librosa torchfcpe
+pip install torchfcpe
 ```
 
 ## Usage
