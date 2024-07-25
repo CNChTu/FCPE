@@ -2,7 +2,9 @@
 
 ## Overview
 
-TorchFCPE(Fast Context-based Pitch Estimation) is a PyTorch-based library designed for audio pitch extraction and MIDI conversion. This README provides a quick guide on how to use the library for audio pitch inference and MIDI extraction.
+TorchFCPE(Fast Context-based Pitch Estimation) is a PyTorch-based library designed for audio pitch extraction and MIDI conversion. This README provides a quick guide on how to use the library for audio pitch inference and MIDI extraction. 
+
+Note: that the MIDI extractor of FCPE is quantized from f0 using non neural network methods
 
 ## Installation
 
